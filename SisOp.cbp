@@ -31,6 +31,7 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
+		<Unit filename="Palabra.h" />
 		<Unit filename="cliente.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -40,6 +41,10 @@
 		<Unit filename="productor.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="registro.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="registro.h" />
 		<Unit filename="servidor.c">
 			<Option compilerVar="CC" />
 		</Unit>

@@ -1,8 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <semaphore.h>
+#include "registro.h"
 
-int main()
-{
-    printf("Hello world!\n");
-    return 0;
+int productor(){
+
 }

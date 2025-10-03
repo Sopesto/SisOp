@@ -20,31 +20,37 @@ int main(int argc, char* argv[]){
       printf("Hubo un error al abrir el socket\n");
       return 1;
     }
-    printf("[Cliente] -> socket iniciado correctamente\n");
+    printf("[Cliente] -> Socket iniciado correctamente\n");
 
     server_info.sin_family=AF_INET;
     server_info.sin_port=htons(50001);
     server_info.sin_addr.s_addr=inet_addr(DIRECCION_IP_SERVER);
 
+
+
     if(connect(fdsocket,(struct sockaddr *) &server_info,sizeof(struct sockaddr_in))==0){
-        printf("[Cliente] -> El cliente esta conectado\n");
-        printf("[Cliente] -> Ingrese un mensaje (hola para salir):\n");
+      printf("[Cliente] -> El cliente esta listo\n");
+      while(1){
+        if(recv(fdsocket,(void*)&msg,sizeof(msg),0)==0){
+          puts("No se pudo establecer conexión con el servidor, intentelo más tarde");
+          break;
+        }
+        printf("[Cliente] -> Recibido: %s\n",msg);
 
-        do{
-          fflush(stdin);
-          scanf("%s", msg);
-          fflush(stdin);
-          printf("[Cliente] -> Enviando %s\n",msg);
-          write(fdsocket,(void*)&msg,sizeof(msg));
-          read(fdsocket,(void*)&msg,sizeof(msg));
-          printf("[Cliente] -> Recibido %s\n",msg);
-        }while(msg[0]!='0');
 
+        printf("[Cliente] -> Ingrese un mensaje:\n");
+
+        fflush(stdin);
+        scanf("%s", msg);
+
+        printf("[Cliente] -> Enviando: %s\n",msg);
+        if(send(fdsocket, (void*) &msg, sizeof(msg),0) == -1)
+          puts("FALLO");
+
+      }
     }
     else
-      printf("Hubo un error intentando conectar el cliente al servidor\n");
-
-
+        printf("Hubo un error intentando conectar el cliente al servidor\n");
 
     close(fdsocket);
     return 0;

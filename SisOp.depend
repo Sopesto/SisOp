@@ -1,0 +1,39 @@
+# depslib dependency file v1.0
+1759357572 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/consumidor.c
+	<stdio.h>
+	<stdlib.h>
+	<semaphore.h>
+	"registro.h"
+	"productor.c"
+
+1759356100 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
+
+1759357580 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+	<semaphore.h>
+	"registro.h"
+
+1759357580 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+	<semaphore.h>
+	"registro.h"
+
+1759355870 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
+
+1759438307 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/cliente.c
+	<stdio.h>
+	<stdlib.h>
+	<unistd.h>
+	<sys/types.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<arpa/inet.h>
+
+1759425544 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/servidor.c
+	<stdio.h>
+	<stdlib.h>
+	<unistd.h>
+	<sys/types.h>
+	<pthread.h>
+	<sys/socket.h>
+	<netinet/in.h>
+	<arpa/inet.h>
+

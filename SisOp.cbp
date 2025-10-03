@@ -31,13 +31,13 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename="Palabra.h" />
 		<Unit filename="cliente.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="consumidor.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="palabra.h" />
 		<Unit filename="productor.c">
 			<Option compilerVar="CC" />
 		</Unit>

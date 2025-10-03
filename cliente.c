@@ -37,15 +37,16 @@ int main(int argc, char* argv[]){
         }
         printf("[Cliente] -> Recibido: %s\n",msg);
 
+        if(msg[0]=='1'){
+          printf("[Cliente] -> Ingrese un mensaje:\n");
 
-        printf("[Cliente] -> Ingrese un mensaje:\n");
+          fflush(stdin);
+          scanf("%s", msg);
 
-        fflush(stdin);
-        scanf("%s", msg);
-
-        printf("[Cliente] -> Enviando: %s\n",msg);
-        if(send(fdsocket, (void*) &msg, sizeof(msg),0) == -1)
-          puts("FALLO");
+          printf("[Cliente] -> Enviando: %s\n",msg);
+          if(send(fdsocket, (void*) &msg, sizeof(msg),0) == -1)
+            puts("FALLO");
+        }
 
       }
     }

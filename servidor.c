@@ -20,20 +20,20 @@
 #define DIRECCION_IP_SERVER "127.0.0.1"
 #define DIRECCION_IP_PROPIA "127.0.0.1"
 
-int   archivo_en_uso = 0, socketsLibres;
-int*  socketsClientes;
-pthread_mutex_t     semSocketLibre = PTHREAD_MUTEX_INITIALIZER, semArchUso = PTHREAD_MUTEX_INITIALIZER;
+int   archivo_en_uso = 0, socketsLibres, sockEspera=0;
+int*  socketsClientes, *socketsEspera;
+pthread_mutex_t     semSocketLibre = PTHREAD_MUTEX_INITIALIZER, semArchUso = PTHREAD_MUTEX_INITIALIZER, semCreaT = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t*    estadosHilos;
 
 void* hilo_socket(void*);
 int   buscarSocketLibre(int*,int);
 
 int main(int argc, char* argv[]){
-    int                 fdsocket, auxAccept, valor=1, cantHilos=5, cantConexSim=3, i, *param;
+    int                 fdsocket, auxAccept, valor=1, cantHilos=3, cantEspera=2, i, *param;
     struct sockaddr_in  socket_info;
     pthread_t*          hilos;
     FILE*               archivoRegistros;
-
+    char                msg_esp[]="Servidor lleno, espera en cola";
     //EXTRAER PARÁMETROS
 
 
@@ -67,6 +67,7 @@ int main(int argc, char* argv[]){
     hilos           = malloc(cantHilos * sizeof(pthread_t));
     socketsClientes = calloc(cantHilos, sizeof(int));
     estadosHilos    = malloc(cantHilos * sizeof(pthread_mutex_t));
+    socketsEspera   = calloc(cantEspera, sizeof(int));
 
     if(estadosHilos == NULL || socketsClientes == NULL || hilos == NULL){
       puts("Hubo un error en reservar memoria");
@@ -81,17 +82,20 @@ int main(int argc, char* argv[]){
       }
     }
 
-    for(i=0;i<cantHilos;i++){
+    i=-1;
+    while(i<cantHilos-1){
+      pthread_mutex_lock(&semCreaT);
       param = &i;
-      sleep(1);
       if(pthread_create((hilos+i),NULL,hilo_socket,(void*)param) < 0){
         printf("Hubo un error en la creación del hilo %d", i);
         return ERR_THRD;
       }
+
+      i++;
     }
 
     //ESCUCHAR PUERTO
-    if(listen(fdsocket,cantConexSim)!=0){
+    if(listen(fdsocket,cantEspera)!=0){
       puts("[Server] -> Ocurrio un error al escuchar por el socket");
       return ERR_LIST;
     }
@@ -99,18 +103,15 @@ int main(int argc, char* argv[]){
 
     //ESPERA DE CLIENTES
     while(1){
-      while(!socketsLibres){
-      }
-
-      i = buscarSocketLibre(socketsClientes, cantHilos);
-
-      if(i == -1){
-        puts("ERROR LÓGICO");
-        return ERR_SOC;
-      }
-
       auxAccept = accept(fdsocket,NULL,NULL);
-      if(socketsLibres>(cantHilos-cantConexSim)){
+      if(socketsLibres>0){
+        i = buscarSocketLibre(socketsClientes, cantHilos);
+
+        if(i == -1){
+          puts("ERROR LÓGICO");
+          return ERR_SOC;
+        }
+
         *(socketsClientes+i) = auxAccept;
 
         pthread_mutex_lock(&semSocketLibre);
@@ -118,8 +119,14 @@ int main(int argc, char* argv[]){
           socketsLibres--;
         pthread_mutex_unlock(&semSocketLibre);
       }
-      else
+      else if(sockEspera<cantEspera){
+        *(socketsEspera+sockEspera) = auxAccept;
+        send(auxAccept,(void*)msg_esp,sizeof(msg_esp),0);
+        sockEspera++;
+      }
+      else{
         close(auxAccept);
+      }
 
     }
 
@@ -130,6 +137,7 @@ int main(int argc, char* argv[]){
     free(estadosHilos);
     pthread_mutex_destroy(&semSocketLibre);
     pthread_mutex_destroy(&semArchUso);
+    pthread_mutex_destroy(&semCreaT);
     for(i=0;i<cantHilos;i++)
       pthread_mutex_destroy(estadosHilos+i);
 
@@ -139,7 +147,8 @@ int main(int argc, char* argv[]){
 
 void* hilo_socket(void* idHilo){
   int id = *((int*)idHilo);
-  int socket;
+  pthread_mutex_unlock(&semCreaT);
+  int socket, aux, i;
   char msgfin[200];
   char msg[101];
 
@@ -153,7 +162,8 @@ void* hilo_socket(void* idHilo){
 
     socket = *(socketsClientes+id);
     printf("HILO DESPERTADO: %d - %d\n",id,socket);
-    sprintf(msg,"[Server] -> Servidor conectado\n");
+
+    sprintf(msg,"1[Server] -> Servidor conectado\n");
     if(write(socket, (void*) &msg, sizeof(msg)) == -1)
           puts("FALLO");
     do{
@@ -166,18 +176,30 @@ void* hilo_socket(void* idHilo){
         strcat(msgfin," ");
 
         //RESPONDE MENSAJE
-        sprintf(msg,"[Server] -> Respuesta: HILO %d. FIN\n", id);
+        sprintf(msg,"1[Server] -> Respuesta: HILO %d. FIN\n", id);
         if(write(socket, (void*) &msg, sizeof(msg)) == -1)
           puts("FALLO");
       }
       else{
         puts("CLIENTE FINALIZADO");
-        break;
+        printf("%s\n", msgfin);
+        if(sockEspera>0){
+          socket = *(socketsEspera);
+          sockEspera--;
+          for(i=0;i<sockEspera;i++){
+            aux = *socketsEspera;
+            *socketsEspera = *(socketsEspera+1);
+            *(socketsEspera+1) = *socketsEspera;
+          }
+          sprintf(msg,"1[Server] -> Servidor conectado\n");
+          if(write(socket, (void*) &msg, sizeof(msg)) == -1)
+                puts("FALLO");
+        }
+        else
+          break;
       }
 
     }while(1);
-
-    printf("%s\n", msgfin);
 
     close(socket);
 

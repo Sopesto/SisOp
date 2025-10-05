@@ -37,6 +37,9 @@
 		<Unit filename="consumidor.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="palabra.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="palabra.h" />
 		<Unit filename="productor.c">
 			<Option compilerVar="CC" />

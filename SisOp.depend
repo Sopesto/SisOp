@@ -1,24 +1,44 @@
 # depslib dependency file v1.0
-1759357572 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/consumidor.c
+1759680456 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/consumidor.c
 	<stdio.h>
 	<stdlib.h>
+	<string.h>
+	<ctype.h>
+	<unistd.h>
 	<semaphore.h>
-	"registro.h"
+	<fcntl.h>
+	<sys/types.h>
+	<sys/ipc.h>
+	<sys/shm.h>
+	<sys/wait.h>
 	"productor.c"
 
-1759356100 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
+1759624360 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
+	<stdio.h>
+	<stdlib.h>
+	<signal.h>
+	"palabra.h"
 
-1759357580 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+1759680442 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+	<sys/ipc.h>
+	<sys/shm.h>
 	<semaphore.h>
+	<fcntl.h>
+	<stdio.h>
 	"registro.h"
 
-1759357580 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+1759680442 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+	<sys/ipc.h>
+	<sys/shm.h>
 	<semaphore.h>
+	<fcntl.h>
+	<stdio.h>
 	"registro.h"
 
-1759355870 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
+1759681874 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
+	"registro.h"
 
-1759438307 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/cliente.c
+1759602229 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/cliente.c
 	<stdio.h>
 	<stdlib.h>
 	<unistd.h>
@@ -27,13 +47,25 @@
 	<netinet/in.h>
 	<arpa/inet.h>
 
-1759425544 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/servidor.c
+1759604707 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/servidor.c
 	<stdio.h>
 	<stdlib.h>
 	<unistd.h>
+	<string.h>
+	<ctype.h>
 	<sys/types.h>
 	<pthread.h>
 	<sys/socket.h>
 	<netinet/in.h>
 	<arpa/inet.h>
+	"registro.c"
+
+1759596986 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/palabra.h
+	<stdbool.h>
+
+1759604614 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
+	"registro.h"
+
+1759680491 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/palabra.c
+	"palabra.h"
 

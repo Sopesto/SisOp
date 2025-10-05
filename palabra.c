@@ -1,4 +1,4 @@
-#include "Palabra.h"
+#include "palabra.h"
 
 #define aMayus(c) ( ((c)>96 && (c)<123)?(c)-32:(c))
 #define aMinus(c) ( ((c)>64 && (c)<91) ?(c)+32:(c))
@@ -71,3 +71,4 @@ bool secPalFin(const SecPal* sec){
 void secPalCerrar(SecPal* sec){
   *sec->cursor = '\0';
 }
+

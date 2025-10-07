@@ -34,27 +34,33 @@ int main(int argc, char* argv[]){
     }
 
     //ABRIR ARCHIVO
-    if(abrir_archivo(&archivoRegistro,"","")==-1){
-      puts("Error al abrir el archivo de registros");
+    if(abrir_archivo(&archivoRegistro,NOMBRE_ARCHIVO,"w")==-1){
+      puts("[Consumidor] -> Error al abrir el archivo de registros");
       return ERR_ARCH;
     }
 
+    sem_unlink("/ID");
+    sem_unlink("/BR");
+    sem_unlink("/MB");
+    sem_unlink("/EB");
+    sem_unlink("/AU");
+
     //DECLARACIÓN DE SEMÁFOROS
-    semIDs      = sem_open("ID",O_CREAT|O_EXCL,644,1);
-    semBuf      = sem_open("BR",O_CREAT|O_EXCL,644,1);
-    semMsgBuf   = sem_open("MB",O_CREAT|O_EXCL,644,0);
-    semEspBuf   = sem_open("EB",O_CREAT|O_EXCL,644,ELEMENTOS_BUF);
-    semArchAux  = sem_open("AU",O_CREAT|O_EXCL,644,1);
+    semIDs      = sem_open("/ID",O_CREAT|O_EXCL,0644,1);
+    semBuf      = sem_open("/BR",O_CREAT|O_EXCL,0644,1);
+    semMsgBuf   = sem_open("/MB",O_CREAT|O_EXCL,0644,0);
+    semEspBuf   = sem_open("/EB",O_CREAT|O_EXCL,0644,ELEMENTOS_BUF);
+    semArchAux  = sem_open("/AU",O_CREAT|O_EXCL,0644,1);
 
     //COMPROBACIÓN DE SEMÁFORO
     if(semIDs==SEM_FAILED || semBuf==SEM_FAILED || semMsgBuf==SEM_FAILED || semEspBuf==SEM_FAILED || semArchAux==SEM_FAILED){
-      puts("Error en la creación de los semáforos");
+      puts("[Consumidor] -> Error en la creación de los semáforos");
       fclose(archivoRegistro);
-      sem_unlink("ID");
-      sem_unlink("BR");
-      sem_unlink("MB");
-      sem_unlink("EB");
-      sem_unlink("AU");
+      sem_unlink("/ID");
+      sem_unlink("/BR");
+      sem_unlink("/MB");
+      sem_unlink("/EB");
+      sem_unlink("/AU");
       sem_close(semEspBuf);
       sem_close(semMsgBuf);
       sem_close(semBuf);
@@ -69,13 +75,13 @@ int main(int argc, char* argv[]){
 
     //DECLARACIÓN Y COMPROBACIÓN DE MEMORIA COMPARTIDA, BUFFER E IDS
     if((shmbuf = shmget(LLAVE_BUF, ELEMENTOS_BUF*sizeof(Registro), shmflg))<0 || (shmid = shmget(LLAVE_IDS, sizeof(int), shmflg))<0){
-      puts("Error en la creación de la memoria compartida");
+      puts("[Consumidor] -> Error en la creación de la memoria compartida");
       fclose(archivoRegistro);
-      sem_unlink("ID");
-      sem_unlink("BR");
-      sem_unlink("MB");
-      sem_unlink("EB");
-      sem_unlink("AU");
+      sem_unlink("/ID");
+      sem_unlink("/BR");
+      sem_unlink("/MB");
+      sem_unlink("/EB");
+      sem_unlink("/AU");
       sem_close(semEspBuf);
       sem_close(semMsgBuf);
       sem_close(semBuf);
@@ -96,13 +102,13 @@ int main(int argc, char* argv[]){
       *(procesos+i) = fork(); //CREA EL PROCESO HIJO Y GUARDA SU ID EN EL VECTOR DE PROCESOS
 
       if(*(procesos+i)<0){
-        printf("Error al crear el proceso hijo %d\n",i);
+        printf("[Consumidor] -> Error al crear el proceso hijo %d\n",i);
         fclose(archivoRegistro);
-        sem_unlink("ID");
-        sem_unlink("BR");
-        sem_unlink("MB");
-        sem_unlink("EB");
-        sem_unlink("AU");
+        sem_unlink("/ID");
+        sem_unlink("/BR");
+        sem_unlink("/MB");
+        sem_unlink("/EB");
+        sem_unlink("/AU");
         sem_close(semEspBuf);
         sem_close(semMsgBuf);
         sem_close(semBuf);
@@ -124,17 +130,17 @@ int main(int argc, char* argv[]){
     //LOGICA
     //ASIGNACIÓN DE MEMORIA COMPARTIDA
     if((buf = shmat(shmbuf, NULL, 0)) == (Registro*)-1 || (ids = shmat(shmid, NULL, 0)) == (int*)-1){
-      puts("Error en la asignación de la memoria compartida");
+      puts("[Consumidor] -> Error en la asignación de la memoria compartida");
       fclose(archivoRegistro);
       shmdt(buf);
       shmdt(ids);
       shmctl(shmbuf, IPC_RMID, NULL);
       shmctl(shmid, IPC_RMID, NULL);
-      sem_unlink("ID");
-      sem_unlink("BR");
-      sem_unlink("MB");
-      sem_unlink("EB");
-      sem_unlink("AU");
+      sem_unlink("/ID");
+      sem_unlink("/BR");
+      sem_unlink("/MB");
+      sem_unlink("/EB");
+      sem_unlink("/AU");
       sem_close(semEspBuf);
       sem_close(semMsgBuf);
       sem_close(semBuf);
@@ -147,15 +153,19 @@ int main(int argc, char* argv[]){
     *ids = cantIds;   //GUARDA LA CANTIDAD DE IDS EN LA MEMORIA COMPARTIDA
     sem_post(semIDs); //DEVUELVE EL SEMÁFORO
 
+    fprintf(archivoRegistro, "ID,PRODUCTOR,NOMBRE,STOCK,PRECIO\n");
+    fflush(archivoRegistro);
+
     //BUCLE DE LECTURA DE REGISTROS, NO TERMINA HASTA LEER TODOS LOS REGISTROS CREADOS
-    while(cantCons==cantIds){
+    while(cantCons!=cantIds){
       //PIDE MENSAJE Y LUEGO BUFFER
       sem_wait(semMsgBuf);
       sem_wait(semBuf);
       //BUSCA UN REGISTRO PARA ESCRIBIR EN EL ARCHIVO
       posReg = buscar_registro(buf,ELEMENTOS_BUF,REG_COM);
+
       if(posReg==NULL){
-        puts("No se encontró ningún registro para leer");
+        puts("[Consumidor] -> No se encontró ningún registro para leer");
         sem_post(semMsgBuf);
       }
       else{
@@ -165,14 +175,15 @@ int main(int argc, char* argv[]){
       //DEVUELVE EL BUFFER Y AUMENTA EL ESPACIO DEL BUFFER
       sem_post(semBuf);
       sem_post(semEspBuf);
-      puts("Proceso consumidor escribió en el buffer.");
+      puts("[Consumidor] -> Leyó el buffer.");
 
       //ESCRIBE EL REGISTRO DEL BUFFER EN EL ARCHIVO
       if(registro.id!=-1){
-        if(escribir_registro(&archivoRegistro, registro)==-1)
-          puts("Error al escribir el archivo");
+        if(escribir_registro(archivoRegistro, &registro)==-1)
+          puts("[Consumidor] -> Error al escribir el archivo");
         else{
-          puts("Proceso consumidor escribió en el archivo de registros.");
+          fflush(archivoRegistro);
+          puts("[Consumidor] -> Proceso consumidor escribió en el archivo de registros.");
           cantCons++; //SI TODO SALIÓ BIEN AUMENTA EL CONTADOR DE REGISTROS ESCRITOS EN 1
         }
       }
@@ -185,6 +196,7 @@ int main(int argc, char* argv[]){
       i++;
     }
 
+    puts("[Consumidor] -> Fin del proceso");
     //CERRAR ARCHIVO
     fclose(archivoRegistro);
     //DESASIGNACIÓN DE MEMORIA COMPARTIDA
@@ -194,11 +206,11 @@ int main(int argc, char* argv[]){
     shmctl(shmbuf, IPC_RMID, NULL);
     shmctl(shmid, IPC_RMID, NULL);
     //DESASIGNACIÓN DE NOMBRE DE LOS SEMÁFOROS
-    sem_unlink("ID");
-    sem_unlink("BR");
-    sem_unlink("MB");
-    sem_unlink("EB");
-    sem_unlink("AU");
+    sem_unlink("/ID");
+    sem_unlink("/BR");
+    sem_unlink("/MB");
+    sem_unlink("/EB");
+    sem_unlink("/AU");
     //CIERRE DE LOS SEMÁFOROS
     sem_close(semEspBuf);
     sem_close(semMsgBuf);

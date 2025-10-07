@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
 #include "registro.h"
 
 #define REGS_A_LEER 10
@@ -14,27 +15,29 @@ int productor(int,int,int);
 
 int productor(int shmbuf, int shmid, int procesoID){
   //DECLARACIÓN DE VARIABLES Y PUNTEROS
-  Registro* buf, *registro=NULL, *posReg;
+  Registro* buf,/* *registro=NULL,*/ *posReg;
   sem_t*    semIDs, *semBuf, *semMsgBuf, *semEspBuf, *semArchAux;
-  int*      ids, cantIDs=0, totalIDs, leido;
-  FILE*     archivoAux;
+  int*      ids, cantIDs=0, totalIDs/*, leido*/;
+  FILE*     archivoAux=NULL;
+
+  srand(time(NULL) ^ procesoID);
 
   //ABRIR ARCHIVO
-  if(abrir_archivo(&archivoAux,"","")==-1){
+  /*if(abrir_archivo(&archivoAux,"","a+")==-1){
     puts("Error al abrir el archivo de registros");
     return ERR_ARCH;
-  }
+  }*/
 
   //DECLARACIÓN DE SEMÁFOROS
-  semIDs      = sem_open("ID",O_CREAT|O_EXCL,644,1);
-  semBuf      = sem_open("BR",O_CREAT|O_EXCL,644,1);
-  semMsgBuf   = sem_open("MB",O_CREAT|O_EXCL,644,0);
-  semEspBuf   = sem_open("EB",O_CREAT|O_EXCL,644,ELEMENTOS_BUF);
-  semArchAux  = sem_open("AU",O_CREAT|O_EXCL,644,1);
+  semIDs      = sem_open("/ID",0);
+  semBuf      = sem_open("/BR",0);
+  semMsgBuf   = sem_open("/MB",0);
+  semEspBuf   = sem_open("/EB",0);
+  semArchAux  = sem_open("/AU",0);
 
   //COMPROBACIÓN DE SEMÁFORO
   if(semIDs==SEM_FAILED || semBuf==SEM_FAILED || semMsgBuf==SEM_FAILED || semEspBuf==SEM_FAILED || semArchAux==SEM_FAILED){
-    puts("Error en la creación de los semáforos");
+    printf("[Productor %d] -> Error en la apertura de semáforos", procesoID);
     sem_close(semEspBuf);
     sem_close(semMsgBuf);
     sem_close(semBuf);
@@ -47,7 +50,7 @@ int productor(int shmbuf, int shmid, int procesoID){
 
   //ASIGNACIÓN DE MEMORIA COMPARTIDA
   if((buf = shmat(shmbuf, NULL, 0)) == (Registro*)-1 || (ids = shmat(shmid, NULL, 0)) == (int*)-1){
-    puts("Error en la asignación de la memoria compartida");
+    printf("[Productor %d] -> Error en la asignación de la memoria compartida", procesoID);
     shmdt(buf);
     shmdt(ids);
     sem_close(semEspBuf);
@@ -76,32 +79,44 @@ int productor(int shmbuf, int shmid, int procesoID){
     //LÓGICA DE CREACIÓN DE REGISTROS
     //PROCESA TODOS LOS REGISTROS PENDIENTES
     while(cantIDs>0){
-      sem_wait(semArchAux);//PIDE EL SEMÁFORO DE ARCHIVO
+      /*sem_wait(semArchAux);//PIDE EL SEMÁFORO DE ARCHIVO
         //LEE UN REGISTRO DEL ARCHIVO
         if(leer_registro(&archivoAux, registro)==-1){
           leido = 0;
-          puts("Error al leer el archivo");
+          printf("[Productor %d] -> Error al leer el archivo", procesoID);
         }
         else{
           leido = 1; //INDICA QUE LEYÓ CORRECTAMENTE EL ARCHIVO
-          printf("Proceso productor %d leyó el archivo auxiliar. \n", (procesoID+1));
+          printf("[Productor %d] -> Leyó el archivo auxiliar. \n", procesoID);
         }
       sem_post(semArchAux);//DEVUELVE EL SEMÁFORO DE ARCHIVO
-
-      if(leido){
+      */
+      if(1/*leido*/){
         sem_wait(semEspBuf); //PIDE SEMÁFORO DE ESPACIO EN BUFFER
         sem_wait(semBuf);    //PIDE SEMÁFRO DE BUFFER
           //BUSCA UN REGISTRO LIBRE EN EL BUFFER
           posReg = buscar_registro(buf,ELEMENTOS_BUF,REG_VAC);
           //SI NO ENCONTRÓ UN REGISTRO LIBRE RESETEA EL ESTADO DE PRODUCCIÓN DE REGISTRO
+
           if(posReg==NULL){
-            puts("No se encontró ningún espacio para escribir");
-            leido = 0;
-            sem_post(semEspBuf);
+            printf("[Productor %d] -> No se encontró ningún espacio para escribir",procesoID);
+            //leido = 0;
           }
           else{
-            registro->id = totalIDs+cantIDs; //GUARDA UN ID ÚNICO PARA EL REGISTRO CREADO
-            *posReg = *registro; //GUARDA EL REGISTRO EN LA POSICIÓN OBTENIDA
+            Registro r;
+            r.id = totalIDs+cantIDs;
+            r.productor_idx = procesoID;
+            const char *nombres[] = {"Paracetamol","Ibuprofeno","Amoxicilina","Atorvastatina","Omeprazol","Loratadina","Cetirizina"};
+            int n = sizeof(nombres)/sizeof(nombres[0]);
+            const char *sel = nombres[rand() % n];
+            strncpy(r.nombre, sel, sizeof(r.nombre)-1);
+            r.nombre[sizeof(r.nombre)-1] = '\0';
+            r.stock = (rand() % 100) + 1; // 1..100
+            r.precio = ((rand() % 2000) + 100) / 100.0; // 1.00 .. 20.99
+            *posReg = r;
+            //*registro = generar_registro_aleatorio(totalIDs+cantIDs,procesoID);
+            //registro->id = totalIDs+cantIDs; //GUARDA UN ID ÚNICO PARA EL REGISTRO CREADO
+            //*posReg = *registro; //GUARDA EL REGISTRO EN LA POSICIÓN OBTENIDA
           }
 
         sem_post(semBuf);     //DEVUELVE SEMÁFORO DE BUFFER
@@ -109,16 +124,16 @@ int productor(int shmbuf, int shmid, int procesoID){
       }
 
       //SI ESCRIBIÓ EL REGISTRO CORRECTAMENTE REDUCE EL CONTADO DE REGISTROS A ESCRIBIR
-      if(leido){
-        printf("Proceso productor %d escribió en el buffer. \n", (procesoID+1));
+      if(1/*leido*/){
+        printf("[Productor %d] -> Escribió en el buffer. \n", procesoID);
         cantIDs--;
       }
-
     }
 
     sem_wait(semIDs);//DEVUELVE EL SEMÁFORO DE IDS
   }
-
+  sem_post(semIDs);//DEVUELVE EL SEMÁFORO DE IDS
+  printf("[Productor %d] -> Finalizó\n",procesoID+1);
   //DESASIGNACIÓN DE MEMORIA COMPARTIDA
   shmdt(buf);
   shmdt(ids);

@@ -2,7 +2,9 @@
 #define REGISTRO_H_INCLUDED
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
+#include <time.h>
 #include "palabra.h"
 
 #define ERR_MEM   -1
@@ -22,8 +24,14 @@
 
 #define TAM_MSG 256
 
+#define NOMBRE_ARCHIVO "registros.csv"
+
 typedef struct{
   int id;
+  int productor_idx;  // índice del productor que creó el registro
+  char nombre[64];    // ejemplo: nombre de medicamento
+  int stock;          // cantidad en stock
+  double precio;      // precio
 }Registro; //ESTRUCTURA DE UN REGISTRO
 
 //DADO UN PUNTERO A UN REGISTRO, SU TAMAÑO Y EL TIPO DE REGISTRO A BUSCAR
@@ -32,15 +40,15 @@ Registro* buscar_registro(Registro*,int,int);
 
 //DADO UN ARCHIVO Y UN REGISTRO, ESCRIBE ESE REGISTRO AL FINAL DEL ARCHIVO
 //DEVUELVE 1 SI PUDO ESCRIBIR, -1 SI NO PUDO.
-int       escribir_registro(FILE**,Registro);
+int       escribir_registro(FILE*,Registro*);
 
 //DADO UN ARCHIVO Y UN PUNTERO A UN REGISTRO, ESCRIBE EL REGISTRO LEÍDO EN EL PUNTERO
 //DEVUELVE 1 SI PUDO LEER, -1 SI NO PUDO
-int       leer_registro(FILE**,Registro*);
+int       leer_registro(FILE*,Registro*);
 
 //DADO PUNTERO DOBLE UN ARCHIVO, UNA RUTA DE ARCHIVO Y UN MODO DE APERTURA, ABRE UN ARCHIVO Y GUARDA LA DIRECCIÓN EN EL PUNTERO SIMPLE AL ARCHIVO
 //DEVUELVE 1 SI PUDO LEER, -1 SI NO PUDO
-int       abrir_archivo(FILE**,char*,char*);
+int       abrir_archivo(FILE**,const char*,const char*);
 
 //DADO UN VECTOR DE ARGUMENTOS, CANTIDAD DE ARGUMENTOS, CANTIDAD LÍMITE DE ARGUMENTOS, UNA FUNCIÓN DE COMPROBACIÓN DE INT QUE NO DEBEN CUMPLIR LOS PARÁMETROS Y UN MENSAJE DE ERROR
 //DEVUELVE 1 SI VERIFICA LOS REQUISITOS BRINDADOS, SI NO ERR_ARG
@@ -58,5 +66,7 @@ void limpiarSalto(char*);
 
 //HACER UNA FUNCIÓN PARA QUE DADA UNA SECUENCIA DE PALABRAS LA DESCOMPONGA
 //EN UNA CONSULTA Y LLAMA LA FUNCIÓN CORRESPONDIENTE PARA ATENDERLA
+
+Registro generar_registro_aleatorio(int,int);
 
 #endif // REGISTRO_H_INCLUDED

@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1759680456 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/consumidor.c
+1759798277 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/consumidor.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
@@ -13,13 +13,15 @@
 	<sys/wait.h>
 	"productor.c"
 
-1759624360 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
+1759798640 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
 	<stdio.h>
 	<stdlib.h>
+	<string.h>
 	<signal.h>
+	<time.h>
 	"palabra.h"
 
-1759680442 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+1759798464 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
 	<sys/ipc.h>
 	<sys/shm.h>
 	<semaphore.h>
@@ -27,7 +29,7 @@
 	<stdio.h>
 	"registro.h"
 
-1759680442 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
+1759798464 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
 	<sys/ipc.h>
 	<sys/shm.h>
 	<semaphore.h>

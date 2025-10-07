@@ -4,11 +4,16 @@ Registro* buscar_registro(Registro* buf, int tam, int op){
   Registro* ret = NULL;
 
   if(op==REG_COM){
-
+    for(int i=0;i<tam;i++){
+      if((buf+i)->id != 0)
+        ret=(buf+i);
+    }
   }
   else if(op==REG_VAC){
-
-
+    for(int i=0;i<tam;i++){
+      if((buf+i)->id == 0)
+        ret=(buf+i);
+    }
   }
   else
     puts("Operación inválida");
@@ -17,17 +22,23 @@ Registro* buscar_registro(Registro* buf, int tam, int op){
   return ret;
 }
 
-int escribir_registro(FILE** archivo, Registro registro){
-  return 1;
+int escribir_registro(FILE* archivo, Registro* r){
+  if(!archivo || !r) return -1;
+    if(fprintf(archivo, "%d,%d,%s,%d,%.2f\n", r->id, r->productor_idx, r->nombre, r->stock, r->precio) < 0)
+        return -1;
+    return 0;
 }
 
-int leer_registro(FILE** archivo, Registro* registro){
+int leer_registro(FILE* archivo, Registro* registro){
   registro=NULL;
   return 1;
 }
 
-int abrir_archivo(FILE** archivo, char* ruta, char* modo){
-  return 1;
+int abrir_archivo(FILE** archivo, const char* ruta, const char* modo){
+  (void)ruta;
+  *archivo = fopen(ruta, modo);
+  if(!*archivo) return -1;
+  return 0;
 }
 
 int verifParams(char* argvec[], int argcant, int cantParam, int(*verif)(int), char* msg){
@@ -70,3 +81,16 @@ void limpiarSalto(char* msg){
 }
 //LIMPIA EL SALTO DE LINEA
 
+Registro generar_registro_aleatorio(int id, int productor_idx){
+    Registro r;
+    r.id = id;
+    r.productor_idx = productor_idx;
+    const char *nombres[] = {"Paracetamol","Ibuprofeno","Amoxicilina","Atorvastatina","Omeprazol","Loratadina","Cetirizina"};
+    int n = sizeof(nombres)/sizeof(nombres[0]);
+    const char *sel = nombres[rand() % n];
+    strncpy(r.nombre, sel, sizeof(r.nombre)-1);
+    r.nombre[sizeof(r.nombre)-1] = '\0';
+    r.stock = (rand() % 100) + 1; // 1..100
+    r.precio = ((rand() % 2000) + 100) / 100.0; // 1.00 .. 20.99
+    return r;
+}

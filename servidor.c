@@ -15,26 +15,27 @@
 
 //VARIABLES GLOBALES Y SEMÁFOROS
 //archivo_en_uso se usa para avisar al cliente que el archivo está en uso sin bloquear al usuario
-int   archivo_en_uso = 0, socketsLibres, sockEspera=0, estadoServidor=1;
+int   archivo_en_uso = 0, socketsLibres, sockEspera=0, estadoServidor=1, cantHilos, fdsocket;
 int*  socketsClientes, *socketsEspera;
 pthread_mutex_t     semSocketLibre = PTHREAD_MUTEX_INITIALIZER, semArchUso = PTHREAD_MUTEX_INITIALIZER, semCreaT = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t*    estadosHilos;
+pthread_t*          hilos;
+FILE*               archivoRegistros;
 
+void  liberarRecursos();
 void* hilo_socket(void*);
 int   buscarSocketLibre(int*,int);
 
 int main(int argc, char* argv[]){
     //CREACIÓN DE VARIABLES
-    int                 fdsocket, auxAccept, valor=1, cantHilos=3, cantEspera=2, i;
+    int                 auxAccept, valor=1, cantEspera, i;
     struct sockaddr_in  socket_info;
-    pthread_t*          hilos;
-    //FILE*               archivoRegistros;
     char                msg_esp[]="Servidor lleno, espera en cola";
 
+    atexit(liberarRecursos);
     //MANEJO DE SEÑALES
-    struct sigaction act; //PARA EL MANEJO DE SEÑALES
-    act.sa_handler=manejadorInterrupciones;
-    sigaction(SIGINT,&act,NULL);
+    signal(SIGINT,SIG_IGN);
+    signal(SIGPIPE,SIG_IGN);
 
     //EXTRAER PARÁMETROS
     if(verifParams(argv,argc,3,isalpha,"Argumentos: 1-Cantidad de clientes simultáneos 2-Cantidad de clientes en espera.") == ERR_ARG)
@@ -51,13 +52,11 @@ int main(int argc, char* argv[]){
       return ERR_ARG;
     }
 
-    /*
     //ABRIR ARCHIVO
-    if(abrir_archivo(&archivoRegistros,"","")==-1){
+    if(abrir_archivo(&archivoRegistros,NOMBRE_ARCHIVO,"r+")==-1){
       puts("Error al abrir el archivo de registros");
       return ERR_ARCH;
     }
-    */
 
     //ABRIR SOCKET
     fdsocket = socket(AF_INET,SOCK_STREAM,0);
@@ -93,10 +92,6 @@ int main(int argc, char* argv[]){
 
     //VERIFICA LA CORRECTA INICIALIZACIÓN DE LA MEMORIA
     if(estadosHilos == NULL || socketsClientes == NULL || hilos == NULL || socketsEspera == NULL){
-      free(hilos);
-      free(socketsClientes);
-      free(estadosHilos);
-      free(socketsEspera);
       puts("Hubo un error en reservar memoria");
       return ERR_MEM;
     }
@@ -174,81 +169,169 @@ int main(int argc, char* argv[]){
     for(i=0;i<cantHilos;i++)
       pthread_join(*(hilos+i),NULL);
 
-    //CIERRE Y LIBERACIÓN DE RECURSOS
-    //CIERRE SOCKET
-    close(fdsocket);
-    //CIERRE ARCHIVO
-    //fclose(archivoRegistros);
-    //LIBERACIÓN DE MEMORIA DINÁMICA
-    free(hilos);
-    free(socketsClientes);
-    free(estadosHilos);
-    //LIBERACIÓN DE SEMÁFOROS
-    pthread_mutex_destroy(&semSocketLibre);
-    pthread_mutex_destroy(&semArchUso);
-    pthread_mutex_destroy(&semCreaT);
-    for(i=0;i<cantHilos;i++)
-      pthread_mutex_destroy(estadosHilos+i);
-
     return 0;
+}
+
+void liberarRecursos(){
+  //CIERRE Y LIBERACIÓN DE RECURSOS
+  //CIERRE SOCKET
+  close(fdsocket);
+  //CIERRE ARCHIVO
+  if(archivoRegistros!=NULL)
+    fclose(archivoRegistros);
+  //LIBERACIÓN DE MEMORIA DINÁMICA
+  free(hilos);
+  free(socketsClientes);
+  free(estadosHilos);
+  free(socketsEspera);
+  //LIBERACIÓN DE SEMÁFOROS
+  pthread_mutex_destroy(&semSocketLibre);
+  pthread_mutex_destroy(&semArchUso);
+  pthread_mutex_destroy(&semCreaT);
+  for(int i=0;i<cantHilos;i++)
+    pthread_mutex_destroy(estadosHilos+i);
 }
 
 //FUNCIÓN DE HILO QUE ATIENDE UNA CONEXIÓN
 void* hilo_socket(void* idHilo){
   //DECLARACIÓN DE VARIABLES
-  int id = *((int*)idHilo);
+  int id = *((int*)idHilo), enTransaccion=0;
   pthread_mutex_unlock(&semCreaT); //AVISA QUE FUÉ CREADO Y QUE TOMÓ UN ID
   int socket, aux, i, estadoAtencion=1, cantMensajes;
   char msgfin[TAM_MSG*30];
   char msg[TAM_MSG];
+  char *validIntUsr;
+  Registro regis;
 
-  printf("[Server] -> Hilo %d Creado\n", id);
+  printf("[Servidor] -> Hilo %d Creado\n", id);
 
   //BUCLE PRINCIPAL MIENTRAS EL SERVIDOR ESTÉ ACTIVO
   while(estadoServidor){
     //ESPERA SER DESPERTADO
     pthread_mutex_lock(estadosHilos+id);
-
+    estadoAtencion = 1;
     //OBTIENE EL SOCKET
     socket = *(socketsClientes+id);
-    printf("[Server] -> Hilo despertado: %d\tID socket: %d\n",id,socket);
+    printf("[Servidor] -> Hilo despertado: %d ID socket: %d\n",id,socket);
 
     //MENSAJE AL CLIENTE DE QUE SE CONECTÓ EL SERVIDOR
-    sprintf(msg,"[Server] -> Servidor conectado");
-    if(send(socket, (void*) &msg, sizeof(msg),0) == -1)
-          puts("FALLO");
+    sprintf(msg,"[Servidor] -> Servidor conectado");
+    send(socket, (void*) &msg, sizeof(msg),0);
     sprintf(msg,"2");
-    if(send(socket, (void*) &msg, sizeof(msg),0) == -1)
-          puts("FALLO");
+    send(socket, (void*) &msg, sizeof(msg),0);
+
+    cantMensajes = 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR
+    sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+    send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+    //MENSAJE DE MENU
+    sprintf(msg,"Menu");
+    send(socket, (void*) &msg, sizeof(msg),0);
 
     do{
       //RECIBE MENSAJE
       if(read(socket, (void*) &msg, sizeof(msg)) > 0){
         printf("[HILO %d] -> Mensaje leido\n", id);
-        printf("MENSAJE: %s", msg);
+        printf("MENSAJE: %s\n", msg);
 
         //ALMACENA PARA MENSAJE FINAL
         strcat(msgfin,"Mensaje: ");
         strcat(msgfin,msg);
-        printf("%s",msgfin);
+        strcat(msgfin,"\n");
 
+        cantMensajes = 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR SIEMPRE MANDA UNO, EL MENÚ
         //RESPONDE MENSAJE
-        cantMensajes = 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR
-        sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        if(send(socket, (void*) &msg, sizeof(msg),0) == -1) //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-            break;
-        //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
-        while(cantMensajes--){
-          sprintf(msg,"[HILO %d] -> Respuesta: RECIBIDO", id);
-          if(send(socket, (void*) &msg, sizeof(msg),0) == -1)
-            break;
+        if(!strcmp(msg,"BEGIN TRANSACTION")){
+          pthread_mutex_lock(&semArchUso);
+          if(!archivo_en_uso){
+            archivo_en_uso=1;
+            pthread_mutex_unlock(&semArchUso);
+            enTransaccion=1;
+
+            sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+            send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+            sprintf(msg,"[Servidor] -> Iniciando Transacción."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+            send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+            while(enTransaccion){
+              cantMensajes = 1;
+              if(read(socket, (void*) &msg, sizeof(msg)) > 0){
+                printf("[HILO %d] -> Mensaje leido\n", id);
+                printf("MENSAJE: %s", msg);
+
+                //ALMACENA PARA MENSAJE FINAL
+                strcat(msgfin,"Mensaje: ");
+                strcat(msgfin,msg);
+                strcat(msgfin,"\n");
+
+
+                strtol(msg,&validIntUsr,10);
+                if(*validIntUsr=='\0')
+                  cantMensajes = strtol(msg,&validIntUsr,10) + 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR SIEMPRE MANDA UNO, EL MENÚ
+                  //REGISTROS + CABECERA
+
+                if(!strcmp(msg,"COMMIT TRANSACTION"))
+                  enTransaccion=0;
+
+
+                sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+                send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+              }
+              else
+                enTransaccion=0;
+
+
+              if(enTransaccion && cantMensajes>0){
+                //MUESTRA EL ARCHIVO AL USUARIO
+                sprintf(msg,"ID\t\t ID Productor\t\t Nombre\t\t\t Stock\t\t Precio");
+                send(socket, (void*) &msg, sizeof(msg),0);
+                fseek(archivoRegistros,0,SEEK_SET);
+                fgets(msg,sizeof(msg),archivoRegistros);
+                cantMensajes--;
+                //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
+                while(cantMensajes){
+                  if(leer_registro(archivoRegistros,&regis)>0){
+                    printf("\nMensajes restantes %d\n",cantMensajes);
+                    sprintf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t %f", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
+                    send(socket, (void*) &msg, sizeof(msg),0);
+                    printf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t %f\n", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
+                    cantMensajes--;
+                  }
+                }
+
+                msg[0] = '\0';
+              }
+
+            }
+
+            sprintf(msg,"[Servidor] -> Fin Transacción."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+            send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+            archivo_en_uso=0;
+          }
+          else{
+            pthread_mutex_unlock(&semArchUso);
+            sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+            send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+            sprintf(msg,"[Servidor] -> Respuesta: El archivo de registros está en uso. Intentelo más tarde.");
+            send(socket, (void*) &msg, sizeof(msg),0);
+          }
         }
+        else{
+          sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+
+        //MENSAJE DE MENU
+        sprintf(msg,"Menu");
+        send(socket, (void*) &msg, sizeof(msg),0);
       }
       //SI EL CLIENTE CERRÓ EJECUTA LO SIGUIENTE
       else{
         //AVISA DE LA FINALIZACIÓN DEL CLIENTE Y MUESTRA LOS MENSAJES QUE MANDÓ EL MISMO
         printf("[HILO %d] -> Cliente finalizado\n", id);
-        printf("[Server] -> ESTOS FUERON SUS MENSAJES:\n%s", msgfin);
+        printf("[Servidor] -> ESTOS FUERON SUS MENSAJES:\n%s", msgfin);
         msgfin[0] = '\0'; //RESETEO DE MENSAJES ENVIADOS POR EL CLIENTE
         close(socket);    //CIERRE DE SOCKET
         //SI HAY UN SOCKET EN ESPERA LO ATIENDE
@@ -260,17 +343,15 @@ void* hilo_socket(void* idHilo){
             *socketsEspera = *(socketsEspera+1);
             *(socketsEspera+1) = aux;
           }
-          sprintf(msg,"[Server] -> Nuevo cliente");
-          if(send(socket, (void*) &msg, sizeof(msg),0) == -1)
-                puts("FALLO");
+          sprintf(msg,"[Servidor] -> Nuevo cliente");
+          send(socket, (void*) &msg, sizeof(msg),0);
 
           sprintf(msg,"1");
-          if(send(socket, (void*) &msg, sizeof(msg),0) == -1)
-                puts("FALLO");
+          send(socket, (void*) &msg, sizeof(msg),0);
         }
         //SI NO HAY SOCKETS EN ESPERA, LO AVISA, ROMPE EL WHILE, SE BLOQUE Y ESPERA A SER DESPERTADO OTRA VEZ
         else{
-          puts("[Server] -> No hay sockets que atender");
+          puts("[Servidor] -> No hay sockets que atender");
           estadoAtencion = 0;
         }
       }

@@ -19,6 +19,9 @@ int main(int argc, char* argv[]){
     int         shmflg, shmbuf, shmid, cantProcs, cantIds, cantCons, i, *ids;
     FILE*       archivoRegistro;
 
+    signal(SIGINT,SIG_IGN);
+    signal(SIGPIPE,SIG_IGN);
+
     if(verifParams(argv,argc,3,isalpha,"Argumentos: 1-Cantidad de procesos generadores 2-Cantidad total de registros.") == ERR_ARG)
       return ERR_ARG;
 

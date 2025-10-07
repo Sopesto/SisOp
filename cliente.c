@@ -20,9 +20,8 @@ int main(int argc, char* argv[]){
 
     msg = malloc(tamMsg * sizeof(char)); //
     //MANEJO DE SEÑALES PARA SUPRIMIR EL CTRL+C
-    struct sigaction act; //PARA EL MANEJO DE SEÑALES
-    act.sa_handler=manejadorInterrupciones;
-    sigaction(SIGINT,&act,NULL);
+    signal(SIGINT,SIG_IGN);
+    signal(SIGPIPE,SIG_IGN);
 
     //INICIALIZACIÓN DE SOCKET
     fdsocket = socket(AF_INET,SOCK_STREAM,0);
@@ -81,40 +80,45 @@ int main(int argc, char* argv[]){
 
       //BUCLE PRINCIPAL DEL CLIENTE
       while(clienteAbierto){
+        //RECIBE CUANTOS MENSAJES SE RECIBIRÁN
+        if(recv(fdsocket,(void*)msg,sizeof(char) * TAM_MSG,0)==0){
+          puts("Se perdió la conexión con el servidor");
+          clienteAbierto=0;
+        }
+        puts(msg);//IMPRIME EL MENSAJE RECIBIDO
+        if(clienteAbierto){
+          cantMensajes = strtol(msg,NULL,10);//GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A RECIBIR
 
-        //PIDE UN MENSAJE AL CLIENTE PARA SER ENVIADO AL SERVIDOR
-        puts("[Cliente] -> Ingrese un mensaje:");
-        fflush(stdin);
-        if(getline(&msg,&tamMsg,stdin)>0){ //SI NO SE PUDO LEER LA LINEA NO ENVIA EL MENSAJE NI ESPERA UNO NUEVO
-          limpiarSalto(msg);//LIMPIA EL SALTO FINAL DEL GETLINE
-
-          //ENVIA EL MENSAJE AL SERVIDOR
-          printf("[Cliente] -> Enviando: %s",msg);
-          if(send(fdsocket,(void*)msg,sizeof(char) * TAM_MSG,0) == -1){
-            puts("FALLO");
-            break;
-          }
-
-          //RECIBE CUANTOS MENSAJES SE RECIBIRÁN
-          if(recv(fdsocket,(void*)msg,sizeof(char) * TAM_MSG,0)==0){
-            puts("Se perdió la conexión con el servidor");
-            break;
-          }
-
-          cantMensajes = strtol(msg,NULL,10);//GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-          cantMensajes = 1;//INDICA LA CANTIDAD DE MENSAJES A ENVIAR
-
-          //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
-          while(cantMensajes--){
+          //WHILE PARA RECIBIR TODOS LOS MENSAJES PENDIENTES
+          while(cantMensajes){
             //ESPERA UN MENSAJE DEL SERVIDOR, SI RECIBE 0 (CIERRE DEL SERVIDOR) ENTONCES TERMINA LA EJECUCIÓN SE PUEDE CAMBIAR POR UNA ESPERA
             //EN BASE A UN TIEMPO Y VOLVER A PEDIR CONEXIÓN
             if(recv(fdsocket,(void*)msg,sizeof(char) * TAM_MSG,0)==0){
               puts("Se perdió la conexión con el servidor");
-              break;
+              clienteAbierto=0;
             }
             puts(msg);//IMPRIME EL MENSAJE RECIBIDO
+            cantMensajes--;
           }
         }
+
+
+        if(clienteAbierto){
+          //PIDE UN MENSAJE AL CLIENTE PARA SER ENVIADO AL SERVIDOR
+          puts("[Cliente] -> Ingrese un mensaje:");
+          fflush(stdin);
+          if(getline(&msg,&tamMsg,stdin)>0){ //SI NO SE PUDO LEER LA LINEA NO ENVIA EL MENSAJE NI ESPERA UNO NUEVO
+            limpiarSalto(msg);//LIMPIA EL SALTO FINAL DEL GETLINE
+
+            //ENVIA EL MENSAJE AL SERVIDOR
+            printf("[Cliente] -> Enviando: %s\n",msg);
+            if(send(fdsocket,(void*)msg,sizeof(char) * TAM_MSG,0) == -1){
+              puts("FALLO");
+              clienteAbierto=0;
+            }
+          }
+        }
+
       }
     }
     //FALLO DE CONEXIÓN

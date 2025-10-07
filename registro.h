@@ -54,9 +54,6 @@ int       abrir_archivo(FILE**,const char*,const char*);
 //DEVUELVE 1 SI VERIFICA LOS REQUISITOS BRINDADOS, SI NO ERR_ARG
 int       verifParams(char*[],int,int,int(*)(int),char*);
 
-//PARA EL MANEJO DE SEÑALES
-void manejadorInterrupciones(int);
-
 //LIMPIAR SALTO DE LINEA
 void limpiarSalto(char*);
 

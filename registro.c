@@ -30,7 +30,31 @@ int escribir_registro(FILE* archivo, Registro* r){
 }
 
 int leer_registro(FILE* archivo, Registro* registro){
-  registro=NULL;
+  char cadena[251];
+  char* aux;
+
+  fgets(cadena,sizeof(cadena),archivo);
+  aux=strchr(cadena,'\n');
+  *aux='\0';
+
+  aux=strrchr(cadena,',');
+  sscanf(aux+1,"%lf",&registro->precio);
+  *aux='\0';
+
+  aux=strrchr(cadena,',');
+  sscanf(aux+1,"%d",&registro->stock);
+  *aux='\0';
+
+  aux=strrchr(cadena,',');
+  strcpy(registro->nombre,aux+1);
+  *aux='\0';
+
+  aux=strrchr(cadena,',');
+  sscanf(aux+1,"%d",&registro->productor_idx);
+  *aux='\0';
+
+  sscanf(cadena,"%d",&registro->id);
+
   return 1;
 }
 
@@ -69,14 +93,10 @@ int verifParams(char* argvec[], int argcant, int cantParam, int(*verif)(int), ch
   return 1;
 }
 
-void manejadorInterrupciones(int invar){
-
-}
-
 void limpiarSalto(char* msg){
   char* auxmsg;
   auxmsg = msg;
-  while(*(auxmsg++) != '\n');
+  while(*(++auxmsg) != '\n');
   *auxmsg = '\0';
 }
 //LIMPIA EL SALTO DE LINEA

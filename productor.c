@@ -20,6 +20,9 @@ int productor(int shmbuf, int shmid, int procesoID){
   int*      ids, cantIDs=0, totalIDs/*, leido*/;
   FILE*     archivoAux=NULL;
 
+  signal(SIGINT,SIG_IGN);
+  signal(SIGPIPE,SIG_IGN);
+
   srand(time(NULL) ^ procesoID);
 
   //ABRIR ARCHIVO

@@ -13,13 +13,18 @@
 	<sys/wait.h>
 	"productor.c"
 
-1759798640 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
+1760202362 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.h
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
+	<unistd.h>
+	<ctype.h>
 	<signal.h>
 	<time.h>
-	"palabra.h"
+	<sys/socket.h>
+	<sys/types.h>
+	<netinet/in.h>
+	<arpa/inet.h>
 
 1759798464 /home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/productor.c
 	<sys/ipc.h>
@@ -37,7 +42,7 @@
 	<stdio.h>
 	"registro.h"
 
-1759681874 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
+1760202630 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/registro.c
 	"registro.h"
 
 1759602229 source:/home/sopesto/Escritorio/UNLaM/Sistemas Operativos/SisOp/cliente.c

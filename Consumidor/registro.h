@@ -27,14 +27,10 @@
 #define REG_VAC 0
 #define REG_COM 1
 
-#define TAM_MSG 1024
+#define TAM_MSG 256
 
 #define NOMBRE_ARCHIVO "registros.csv"
 #define NOMBRE_ARCHIVO_TEMPORAL ".registros.tmp"
-
-#define MENU_CLIENTE      "MENÚ\n\n\tBEGIN TRANSACTION:\n\t\tEmpieza una transacción sobre el archivo de registros.\n\n\tCOMMIT TRANSACTION:\n\t\tTermina la transacción sobre el archivo de registros.\n\n\tAYUDA:\n\t\tAyuda sobre los comandos que se pueden utilizar. Solo funciona cuando se están haciendo transacciones.\n\n"
-#define MENU_TRANSACCION  "AYUDA\n\n\tCOMMIT TRANSACTION:\n\t\tTermina la transacción sobre el archivo de registros.\n\n\tAYUDA:\n\t\tAyuda sobre los comandos que se pueden utilizar.\n\n\tMOSTRAR <[CAMPO] [VALOR]>:\n\t\tMuestra los registros donde el campo tiene el valor indicado. Si no se especifica el campo muestra todos los registros.\n\n\tINSERTAR [CAMPO] [(ID,PRODUCTOR,NOMBRE,STOCK,PRECIO)]:\n\t\tInserta el registro dado al final del archivo. Se deben especificar todos los campos.\n\n\tELIMINAR [CAMPO] [VALOR]:\n\t\tElimina los registros donde el campo tiene el valor indicado. Si no se especifica el campo muestra todos los registros.\n\n\tACTUALIZAR [CAMPO] [(ID,PRODUCTOR,NOMBRE,STOCK,PRECIO)]:\n\t\tActualiza los registros donde el campo tiene el valor indicado. Aquellos campos que tengan el valor -1 no son actualizados.\n\n\tORDENAR [CAMPO] [ORD]:\n\t\tOrdena los registros en orden ascendente o descendente según el campo indicado.\n\n"
-
 
 typedef struct{
   int     id;
@@ -128,20 +124,4 @@ Palabra leer_palabra(char**);
 int ordenarIDAsc(const void*,const void*);
 
 int ordenarIDDesc(const void*,const void*);
-
-int ordenarProdAsc(const void*,const void*);
-
-int ordenarProdDesc(const void*,const void*);
-
-int ordenarNombreAsc(const void*,const void*);
-
-int ordenarNombreDesc(const void*,const void*);
-
-int ordenarStockAsc(const void*,const void*);
-
-int ordenarStockDesc(const void*,const void*);
-
-int ordenarPrecioAsc(const void*,const void*);
-
-int ordenarPrecioDesc(const void*,const void*);
 #endif // REGISTRO_H_INCLUDED

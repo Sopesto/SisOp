@@ -192,7 +192,7 @@ int procesar_consulta(char* consulta, FILE **archivo, int socket){
 
   if(comando != 0 && comando != 5){
     pvalor    = leer_palabra(&consulta);
-    if(comando == 4)
+    if(comando==4)
       valor   = valor_campo(pvalor,-1);
     else
       valor   = valor_campo(pvalor,campo);
@@ -340,29 +340,30 @@ int procesar_consulta(char* consulta, FILE **archivo, int socket){
         break;
         case 1:
           if(asc)
-            funcionOrdenar = ordenarProdAsc;
+            funcionOrdenar = ordenarIDAsc;
           else
-            funcionOrdenar = ordenarProdDesc;
+            funcionOrdenar = ordenarIDDesc;
         break;
         case 2:
           if(asc)
-            funcionOrdenar = ordenarNombreAsc;
+            funcionOrdenar = ordenarIDAsc;
           else
-            funcionOrdenar = ordenarNombreDesc;
+            funcionOrdenar = ordenarIDDesc;
         break;
         case 3:
           if(asc)
-            funcionOrdenar = ordenarStockAsc;
+            funcionOrdenar = ordenarIDAsc;
           else
-            funcionOrdenar = ordenarStockDesc;
+            funcionOrdenar = ordenarIDDesc;
         break;
         case 4:
           if(asc)
-            funcionOrdenar = ordenarPrecioAsc;
+            funcionOrdenar = ordenarIDAsc;
           else
-            funcionOrdenar = ordenarPrecioDesc;
+            funcionOrdenar = ordenarIDDesc;
         break;
       }
+
       sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
       send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
@@ -426,7 +427,7 @@ int copiar_archivoBAT(FILE *archivoBase, FILE *archivoDestino){
 
 //MUESTRA EL MENSAJE DE AYUDA - MENU
 int ayuda(int socket){
-  char msg[]=MENU_TRANSACCION;
+  char msg[]="menu";
   send(socket, (void*) &msg, sizeof(msg),0);
   return 1;
 }
@@ -574,6 +575,11 @@ int actualizar(FILE* archivo, int campo, void* valor){
     }
 
     if(encontrado){
+      if(registroa.id<0)
+      registroa.id=reg.id;
+      else if(registroa.id==0)
+        return -1;
+
       if(registroa.productor_idx<0)
         registroa.productor_idx=reg.productor_idx;
 
@@ -616,7 +622,7 @@ int ordenar(FILE* archivo, int registros, int campo, int (*ord)(const void*,cons
     registros--;
   }
 
-  qsort(regis, i, sizeof(Registro), ord);
+  qsort(regis, registros, sizeof(Registro), ord);
 
   fseek(archivo,0,SEEK_SET);
 
@@ -718,7 +724,7 @@ void* valor_campo(Palabra valor, int campo){
     break;
     case 4:
       ret = malloc(sizeof(double));
-      *((double*)ret) = atof(val);
+      *((int*)ret) = atof(val);
     break;
   }
 
@@ -749,7 +755,6 @@ Palabra leer_palabra(char** cadena){
   return palabra;
 }
 
-
 int ordenarIDAsc(const void* a, const void* b){
   const Registro* ra = (Registro*)a;
   const Registro* rb = (Registro*)b;
@@ -761,64 +766,5 @@ int ordenarIDDesc(const void* a, const void* b){
   const Registro* ra = (Registro*)a;
   const Registro* rb = (Registro*)b;
 
-  return rb->id > ra->id;
-}
-
-
-int ordenarProdAsc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return ra->productor_idx > rb->productor_idx;
-}
-
-int ordenarProdDesc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return rb->productor_idx > ra->productor_idx;
-}
-
-
-int ordenarNombreAsc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return strcmp(ra->nombre,rb->nombre);
-}
-
-int ordenarNombreDesc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return strcmp(rb->nombre,ra->nombre);
-}
-
-
-int ordenarStockAsc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return ra->stock > rb->stock;
-}
-
-int ordenarStockDesc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return rb->stock > ra->stock;
-}
-
-int ordenarPrecioAsc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return ra->precio > rb->precio;
-}
-
-int ordenarPrecioDesc(const void* a, const void* b){
-  const Registro* ra = (Registro*)a;
-  const Registro* rb = (Registro*)b;
-
-  return rb->precio > ra->precio;
+  return ra->id > rb->id;
 }

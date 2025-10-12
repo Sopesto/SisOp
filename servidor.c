@@ -1,13 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <ctype.h>
-#include <sys/types.h>
+#include <sys/file.h>
 #include <pthread.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include "registro.h"
 
 #define DIRECCION_IP_SERVER "127.0.0.1"
@@ -195,13 +187,12 @@ void liberarRecursos(){
 //FUNCIÓN DE HILO QUE ATIENDE UNA CONEXIÓN
 void* hilo_socket(void* idHilo){
   //DECLARACIÓN DE VARIABLES
-  int id = *((int*)idHilo), enTransaccion=0;
+  int id = *((int*)idHilo), enTransaccion=0, errTransaccion=0, finCli;
   pthread_mutex_unlock(&semCreaT); //AVISA QUE FUÉ CREADO Y QUE TOMÓ UN ID
   int socket, aux, i, estadoAtencion=1, cantMensajes;
-  char msgfin[TAM_MSG*30];
+  char msgfin[TAM_MSG*50];
   char msg[TAM_MSG];
-  char *validIntUsr;
-  Registro regis;
+  FILE *archivoTemporal;
 
   printf("[Servidor] -> Hilo %d Creado\n", id);
 
@@ -225,12 +216,14 @@ void* hilo_socket(void* idHilo){
     send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
     //MENSAJE DE MENU
-    sprintf(msg,"Menu");
+    sprintf(msg,MENU_CLIENTE);
     send(socket, (void*) &msg, sizeof(msg),0);
+
+    finCli=0;
 
     do{
       //RECIBE MENSAJE
-      if(read(socket, (void*) &msg, sizeof(msg)) > 0){
+      if(read(socket, (void*) &msg, sizeof(msg)) > 0 && !finCli){
         printf("[HILO %d] -> Mensaje leido\n", id);
         printf("MENSAJE: %s\n", msg);
 
@@ -240,6 +233,12 @@ void* hilo_socket(void* idHilo){
         strcat(msgfin,"\n");
 
         cantMensajes = 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR SIEMPRE MANDA UNO, EL MENÚ
+
+        if(!strcmp(msg,"SALIR")){
+          finCli=1;
+          cantMensajes=0;
+        }
+
         //RESPONDE MENSAJE
         if(!strcmp(msg,"BEGIN TRANSACTION")){
           pthread_mutex_lock(&semArchUso);
@@ -247,6 +246,7 @@ void* hilo_socket(void* idHilo){
             archivo_en_uso=1;
             pthread_mutex_unlock(&semArchUso);
             enTransaccion=1;
+            errTransaccion=0;
 
             sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
             send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
@@ -254,59 +254,91 @@ void* hilo_socket(void* idHilo){
             sprintf(msg,"[Servidor] -> Iniciando Transacción."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
             send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-            while(enTransaccion){
-              cantMensajes = 1;
+            archivoTemporal=fopen(NOMBRE_ARCHIVO_TEMPORAL,"wb+");
+
+            if(archivoTemporal==NULL){
+              puts("Error al abrir el archivo temporal");
+              enTransaccion=0;
+            }
+
+            flock(fileno(archivoRegistros), LOCK_EX);
+
+            if(!copiar_archivoTAB(archivoRegistros,archivoTemporal)){
+              puts("\nError al copiar los registros al archivo temporal");
+              fclose(archivoTemporal);
+              remove(NOMBRE_ARCHIVO_TEMPORAL);
+              errTransaccion=1;
+              enTransaccion=0;
+            }
+
+            while(!errTransaccion && enTransaccion){
               if(read(socket, (void*) &msg, sizeof(msg)) > 0){
                 printf("[HILO %d] -> Mensaje leido\n", id);
-                printf("MENSAJE: %s", msg);
+                printf("MENSAJE: %s\n", msg);
 
                 //ALMACENA PARA MENSAJE FINAL
                 strcat(msgfin,"Mensaje: ");
                 strcat(msgfin,msg);
                 strcat(msgfin,"\n");
 
-
-                strtol(msg,&validIntUsr,10);
-                if(*validIntUsr=='\0')
-                  cantMensajes = strtol(msg,&validIntUsr,10) + 1; //INDICA LA CANTIDAD DE MENSAJES A ENVIAR SIEMPRE MANDA UNO, EL MENÚ
-                  //REGISTROS + CABECERA
-
                 if(!strcmp(msg,"COMMIT TRANSACTION"))
                   enTransaccion=0;
 
+                if(enTransaccion && procesar_consulta(msg,&archivoTemporal,socket)<0){
+                  puts("Error al procesar la consulta");
+                  sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+                  send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-                sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-                send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-              }
-              else
-                enTransaccion=0;
-
-
-              if(enTransaccion && cantMensajes>0){
-                //MUESTRA EL ARCHIVO AL USUARIO
-                sprintf(msg,"ID\t\t ID Productor\t\t Nombre\t\t\t Stock\t\t Precio");
-                send(socket, (void*) &msg, sizeof(msg),0);
-                fseek(archivoRegistros,0,SEEK_SET);
-                fgets(msg,sizeof(msg),archivoRegistros);
-                cantMensajes--;
-                //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
-                while(cantMensajes){
-                  if(leer_registro(archivoRegistros,&regis)>0){
-                    printf("\nMensajes restantes %d\n",cantMensajes);
-                    sprintf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t %f", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
-                    send(socket, (void*) &msg, sizeof(msg),0);
-                    printf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t %f\n", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
-                    cantMensajes--;
-                  }
+                  sprintf(msg,"[Servidor] -> Error al procesar Consulta."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+                  send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
                 }
 
-                msg[0] = '\0';
+              }
+              else{
+                errTransaccion=1;
+                enTransaccion=0;
               }
 
             }
 
-            sprintf(msg,"[Servidor] -> Fin Transacción."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+            fflush(stdout);
+
+            if(errTransaccion){
+              puts("\nEl usuario no guardó las transacciones, por lo que no se guardarán los cambios");
+            }
+            else{
+              if(freopen(NULL,"w+",archivoRegistros)==NULL){
+                puts("\nError al re abrir el archivo de registros");
+                errTransaccion = 1;
+              }
+
+
+              if(copiar_archivoBAT(archivoTemporal,archivoRegistros)<0){
+                puts("\nError al copiar los registros al archivo de registros");
+                errTransaccion = 1;
+              }
+            }
+
+
+            flock(fileno(archivoRegistros), LOCK_UN);
+
+            if(archivoTemporal!=NULL){
+              fclose(archivoTemporal);
+              remove(NOMBRE_ARCHIVO_TEMPORAL);
+            }
+
+            sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
             send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+            if(errTransaccion){
+              sprintf(msg,"[Servidor] -> Error en la transacción, abortado.\n"); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+              send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+            }
+            else{
+              sprintf(msg,"[Servidor] -> Fin Transacción."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+              send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+            }
+
             archivo_en_uso=0;
           }
           else{
@@ -321,11 +353,14 @@ void* hilo_socket(void* idHilo){
         else{
           sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
           send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+          if(!finCli){
+            //MENSAJE DE MENU
+            sprintf(msg,MENU_CLIENTE);
+            send(socket, (void*) &msg, sizeof(msg),0);
+          }
         }
 
-        //MENSAJE DE MENU
-        sprintf(msg,"Menu");
-        send(socket, (void*) &msg, sizeof(msg),0);
       }
       //SI EL CLIENTE CERRÓ EJECUTA LO SIGUIENTE
       else{

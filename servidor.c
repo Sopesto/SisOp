@@ -1,9 +1,8 @@
 #include <sys/file.h>
+#include <netdb.h>
+#include <ifaddrs.h>
 #include <pthread.h>
 #include "registro.h"
-
-#define DIRECCION_IP_SERVER "127.0.0.1"
-#define DIRECCION_IP_PROPIA "127.0.0.1"
 
 //VARIABLES GLOBALES Y SEMÁFOROS
 //archivo_en_uso se usa para avisar al cliente que el archivo está en uso sin bloquear al usuario
@@ -13,6 +12,7 @@ pthread_mutex_t     semSocketLibre = PTHREAD_MUTEX_INITIALIZER, semArchUso = PTH
 pthread_mutex_t*    estadosHilos;
 pthread_t*          hilos;
 FILE*               archivoRegistros;
+char*               ip;
 
 void  liberarRecursos();
 void* hilo_socket(void*);
@@ -20,14 +20,29 @@ int   buscarSocketLibre(int*,int);
 
 int main(int argc, char* argv[]){
     //CREACIÓN DE VARIABLES
-    int                 auxAccept, valor=1, cantEspera, i;
+    int                 auxAccept, valor=1, cantEspera, i, puerto;
     struct sockaddr_in  socket_info;
     char                msg_esp[]="Servidor lleno, espera en cola";
+    FILE*               archivoRed;
 
     atexit(liberarRecursos);
     //MANEJO DE SEÑALES
     signal(SIGINT,SIG_IGN);
     signal(SIGPIPE,SIG_IGN);
+
+    //RESERVA ESPACIO PARA LA IP
+    ip = malloc(sizeof(char)*16);
+
+    //ABRE EL ARCHIVO DE CONFIGURACIÓN DE RED
+    archivoRed = fopen("netconfig.config","rt");
+    if(archivoRed==NULL)
+      return ERR_SOC;
+
+    //LEE EL ARCHIVO DE CONFIGURACIÓN DE RED
+    if(fscanf(archivoRed,"%16[^:]:%d",ip,&puerto)<0)
+      return ERR_SOC;
+
+    fclose(archivoRed); //CIERRA EL ARCHIVO DE CONFIGURACIÓN DE RED
 
     //EXTRAER PARÁMETROS
     if(verifParams(argv,argc,3,isalpha,"Argumentos: 1-Cantidad de clientes simultáneos 2-Cantidad de clientes en espera.") == ERR_ARG)
@@ -62,8 +77,8 @@ int main(int argc, char* argv[]){
 
     //ASIGNACIÓN DE DATOS DEL SERVIDOR
     socket_info.sin_family=AF_INET;
-    socket_info.sin_port=htons(50001);
-    socket_info.sin_addr.s_addr=inet_addr(DIRECCION_IP_PROPIA);
+    socket_info.sin_port=htons(puerto);
+    socket_info.sin_addr.s_addr=inet_addr(ip);
 
     //BINDEO DE SOCKET
     if(bind(fdsocket,(struct sockaddr*) &socket_info,sizeof(struct sockaddr_in))==-1){
@@ -71,6 +86,8 @@ int main(int argc, char* argv[]){
       return ERR_BIND;
     }
     puts("[Server] -> Bind realizado correctamente");
+    printf("[Server] -> Servidor abierto en la IP: %s\n", ip);
+    printf("[Server] -> Servidor abierto en el puerto: %d\n", puerto);
 
     //CONFIGURACIÓN DEL SOCKET
     setsockopt(fdsocket, SOL_SOCKET, SO_REUSEADDR,(const void*) &valor,sizeof(int));
@@ -176,6 +193,7 @@ void liberarRecursos(){
   free(socketsClientes);
   free(estadosHilos);
   free(socketsEspera);
+  free(ip);
   //LIBERACIÓN DE SEMÁFOROS
   pthread_mutex_destroy(&semSocketLibre);
   pthread_mutex_destroy(&semArchUso);

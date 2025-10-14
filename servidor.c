@@ -209,8 +209,11 @@ void* hilo_socket(void* idHilo){
   pthread_mutex_unlock(&semCreaT); //AVISA QUE FUÉ CREADO Y QUE TOMÓ UN ID
   int socket, aux, i, estadoAtencion=1, cantMensajes;
   char msgfin[TAM_MSG*50];
-  char msg[TAM_MSG];
+  char msg[TAM_MSG], msgErr[TAM_MSG];
+  char* pmsgErr;
   FILE *archivoTemporal;
+
+  pmsgErr = msgErr;
 
   printf("[Servidor] -> Hilo %d Creado\n", id);
 
@@ -282,7 +285,7 @@ void* hilo_socket(void* idHilo){
             flock(fileno(archivoRegistros), LOCK_EX);
 
             if(!copiar_archivoTAB(archivoRegistros,archivoTemporal)){
-              puts("\nError al copiar los registros al archivo temporal");
+              puts("Error al copiar los registros al archivo temporal");
               fclose(archivoTemporal);
               remove(NOMBRE_ARCHIVO_TEMPORAL);
               errTransaccion=1;
@@ -302,13 +305,12 @@ void* hilo_socket(void* idHilo){
                 if(!strcmp(msg,"COMMIT TRANSACTION"))
                   enTransaccion=0;
 
-                if(enTransaccion && procesar_consulta(msg,&archivoTemporal,socket)<0){
+                if(enTransaccion && procesar_consulta(msg,&archivoTemporal,socket,&pmsgErr)<0){
                   puts("Error al procesar la consulta");
                   sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
                   send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-                  sprintf(msg,"[Servidor] -> Error al procesar Consulta."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-                  send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+                  send(socket, (void*) &msgErr, sizeof(msgErr),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
                 }
 
               }
@@ -322,17 +324,17 @@ void* hilo_socket(void* idHilo){
             fflush(stdout);
 
             if(errTransaccion){
-              puts("\nEl usuario no guardó las transacciones, por lo que no se guardarán los cambios");
+              puts("El usuario no guardó las transacciones, por lo que no se guardarán los cambios");
             }
             else{
               if(freopen(NULL,"w+",archivoRegistros)==NULL){
-                puts("\nError al re abrir el archivo de registros");
+                puts("Error al re abrir el archivo de registros");
                 errTransaccion = 1;
               }
 
 
               if(copiar_archivoBAT(archivoTemporal,archivoRegistros)<0){
-                puts("\nError al copiar los registros al archivo de registros");
+                puts("Error al copiar los registros al archivo de registros");
                 errTransaccion = 1;
               }
             }

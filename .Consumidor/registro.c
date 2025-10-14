@@ -111,9 +111,9 @@ int leer_registro_de_cadena(char* cadena, Registro* registro){
 }
 
 int abrir_archivo(FILE** archivo, const char* ruta, const char* modo){
-  (void)ruta;
   *archivo = fopen(ruta, modo);
-  if(!*archivo) return -1;
+  if(!*archivo)
+    return -1;
   return 0;
 }
 
@@ -168,13 +168,13 @@ Registro generar_registro_aleatorio(int id, int productor_idx){
 }
 
 //PROCESA UNA CONSULTA Y REALIZA LAS MODIFICACIONES CORRESPONDIENTES EN EL ARCHIVO
-int procesar_consulta(char* consulta, FILE **archivo, int socket){
+int procesar_consulta(char* consulta, FILE **archivo, int socket, char** msgErr){
   char msg[TAM_MSG];
   int registros, comando=-1, campo=-1, cantMensajes = 1, i, asc, ret=-1;
   Registro reg, *regis;
   void* valor;
   int (*funcionOrdenar)(const void*, const void*);
-  Palabra pcomando, pcampo, pvalor, orden;
+  Palabra pcomando, pcampo, pvalor, orden, exc;
 
   pcomando  = leer_palabra(&consulta);
   comando   = obtener_comando(pcomando);
@@ -192,195 +192,229 @@ int procesar_consulta(char* consulta, FILE **archivo, int socket){
 
   if(comando != 0 && comando != 5){
     pvalor    = leer_palabra(&consulta);
-    if(comando==4)
+    if(comando == 4)
       valor   = valor_campo(pvalor,-1);
     else
       valor   = valor_campo(pvalor,campo);
   }
 
-  orden     = leer_palabra(&consulta);
-  asc       = ascendencia(orden);
+  if(comando == 5){
+    orden     = leer_palabra(&consulta);
+    asc       = ascendencia(orden);
+  }
+
+  exc       = leer_palabra(&consulta);
 
   switch(comando){
     case 0:
     //AYUDA
-    sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-    send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+    if(!strcmp("",exc.inicio)){
+      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-    ret = ayuda(socket);
+      ret = ayuda(socket);
+    }
 
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tAYUDA:\n\t\tAyuda sobre los comandos que se pueden utilizar.\n\n");
 
     break;
 
     case 1:
     //MOSTRAR
-    fseek(*archivo,0,SEEK_SET);
-    fgets(msg,sizeof(msg),*archivo);
-    registros = contar_registros(*archivo);
+    if(!strcmp("",exc.inicio)){
+      if( (campo == -1 && valor == NULL) || (valor != NULL && campo != -1)){
 
-    regis = malloc(registros*sizeof(Registro));
-    if(regis==NULL)
-      return -1;
+      }
+      fseek(*archivo,0,SEEK_SET);
+      fgets(msg,sizeof(msg),*archivo);
+      registros = contar_registros(*archivo);
 
-    i=0;
+      regis = malloc(registros*sizeof(Registro));
+      if(regis==NULL)
+        return -1;
 
-    while(fread(&reg,sizeof(Registro),1,*archivo)>0){
-      if(campo>=0){
-        switch(campo){
-          case 0:
-            if(reg.id!=*((int*)valor))
-              continue;
-          break;
-          case 1:
-            if(reg.productor_idx!=*((int*)valor))
-              continue;
-          break;
-          case 2:
-            if(strcmp(reg.nombre,((char*)valor)))
-              continue;
-          break;
-          case 3:
-            if(reg.stock!=*((int*)valor))
-              continue;
-          break;
-          case 4:
-            if(reg.id!=*((double*)valor))
-              continue;
-          break;
+      i=0;
+
+      while(fread(&reg,sizeof(Registro),1,*archivo)>0){
+        if(campo>=0){
+          switch(campo){
+            case 0:
+              if(reg.id!=*((int*)valor))
+                continue;
+            break;
+            case 1:
+              if(reg.productor_idx!=*((int*)valor))
+                continue;
+            break;
+            case 2:
+              if(strcmp(reg.nombre,((char*)valor)))
+                continue;
+            break;
+            case 3:
+              if(reg.stock!=*((int*)valor))
+                continue;
+            break;
+            case 4:
+              if(reg.id!=*((double*)valor))
+                continue;
+            break;
+          }
         }
+
+        *(regis+i)=reg;
+        cantMensajes++;
+        i++;
       }
 
-      *(regis+i)=reg;
-      cantMensajes++;
-      i++;
+      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+      if(i)
+        ret = mostrar(regis,cantMensajes,socket);
+
+      free(regis);
     }
 
-    sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-    send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-
-    ret = mostrar(regis,cantMensajes,socket);
-
-    free(regis);
-
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tMOSTRAR <[CAMPO] [VALOR]>:\n\t\tMuestra los registros donde el campo tiene el valor indicado. Si no se especifica el campo muestra todos los registros.\n\n");
 
     break;
 
     case 2:
     //INSERTAR
-    if(valor != NULL){
-      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+    if(!strcmp("",exc.inicio)){
+      if(valor != NULL){
+        sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-      if((ret = insertar(*archivo, *((Registro*) valor)))<0){
-        sprintf(msg,"ERROR AL INSERTAR EL ELEMENTO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-      }
-      else{
-        sprintf(msg,"ELEMENTO INSERTADO CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        if((ret = insertar(*archivo, *((Registro*) valor)))<0){
+          sprintf(msg,"ERROR AL INSERTAR EL ELEMENTO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+        else{
+          sprintf(msg,"ELEMENTO INSERTADO CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
       }
     }
 
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tINSERTAR [(ID,PRODUCTOR,NOMBRE,STOCK,PRECIO)]:\n\t\tInserta el registro dado al final del archivo. Se deben especificar todos los campos.\n\n");
 
     break;
 
     case 3:
     //ELIMINAR
-    if(valor != NULL && campo != -1){
-      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+    if(!strcmp("",exc.inicio)){
+      if(valor != NULL && campo != -1){
+        sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-      if((ret = eliminar(archivo,campo,valor))<0){
-        sprintf(msg,"ERROR AL ELIMINAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-      }
-      else if(ret==0){
-        sprintf(msg,"NO SE ENCONTRÓ EL ELEMENTO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-      }
-      else{
-        sprintf(msg,"ELEMENTOS ELIMINADOS CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        if((ret = eliminar(archivo,campo,valor))<0){
+          sprintf(msg,"ERROR AL ELIMINAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+        else if(ret==0){
+          sprintf(msg,"NO SE ENCONTRÓ EL ELEMENTO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+        else{
+          sprintf(msg,"ELEMENTOS ELIMINADOS CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
       }
     }
 
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tELIMINAR [CAMPO] [VALOR]:\n\t\tElimina los registros donde el campo tiene el valor indicado. Si no se especifica el campo muestra todos los registros.\n\n");
 
     break;
 
     case 4:
     //ACTUALIZAR
-    printf("Campo: %d",campo);
-    if(valor != NULL && campo != -1){
-      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+    if(!strcmp("",exc.inicio)){
+      if(valor != NULL && campo != -1){
+        sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
 
-      if((ret = actualizar(*archivo,campo,valor) )<0){
-        sprintf(msg,"ERROR AL ACTUALIZAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-      }
-      else{
-        sprintf(msg,"ELEMENTOS ACTUALIZADOS CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        if((ret = actualizar(*archivo,campo,valor) )<0){
+          sprintf(msg,"ERROR AL ACTUALIZAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+        else{
+          sprintf(msg,"ELEMENTOS ACTUALIZADOS CON ÉXITO."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
       }
     }
 
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tACTUALIZAR [CAMPO] [(ID,PRODUCTOR,NOMBRE,STOCK,PRECIO)]:\n\t\tActualiza los registros donde el campo tiene el valor indicado. Aquellos campos que tengan el valor -1 no son actualizados.\n\n");
 
     break;
 
     case 5:
     //ORDENAR
-    if(asc != -1 && campo != -1){
-      registros = contar_registros(*archivo);
-      switch(campo){
-        case 0:
-          if(asc)
-            funcionOrdenar = ordenarIDAsc;
-          else
-            funcionOrdenar = ordenarIDDesc;
-        break;
-        case 1:
-          if(asc)
-            funcionOrdenar = ordenarIDAsc;
-          else
-            funcionOrdenar = ordenarIDDesc;
-        break;
-        case 2:
-          if(asc)
-            funcionOrdenar = ordenarIDAsc;
-          else
-            funcionOrdenar = ordenarIDDesc;
-        break;
-        case 3:
-          if(asc)
-            funcionOrdenar = ordenarIDAsc;
-          else
-            funcionOrdenar = ordenarIDDesc;
-        break;
-        case 4:
-          if(asc)
-            funcionOrdenar = ordenarIDAsc;
-          else
-            funcionOrdenar = ordenarIDDesc;
-        break;
-      }
-
-      sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-      send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-
-      if((ret = ordenar(*archivo,registros,campo, funcionOrdenar))<0){
-        sprintf(msg,"ERROR AL ORDENAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+    if(!strcmp("",exc.inicio)){
+      if(asc != -1 && campo != -1){
+        registros = contar_registros(*archivo);
+        switch(campo){
+          case 0:
+            if(asc)
+              funcionOrdenar = ordenarIDAsc;
+            else
+              funcionOrdenar = ordenarIDDesc;
+          break;
+          case 1:
+            if(asc)
+              funcionOrdenar = ordenarProdAsc;
+            else
+              funcionOrdenar = ordenarProdDesc;
+          break;
+          case 2:
+            if(asc)
+              funcionOrdenar = ordenarNombreAsc;
+            else
+              funcionOrdenar = ordenarNombreDesc;
+          break;
+          case 3:
+            if(asc)
+              funcionOrdenar = ordenarStockAsc;
+            else
+              funcionOrdenar = ordenarStockDesc;
+          break;
+          case 4:
+            if(asc)
+              funcionOrdenar = ordenarPrecioAsc;
+            else
+              funcionOrdenar = ordenarPrecioDesc;
+          break;
+        }
+        sprintf(msg,"%d",cantMensajes); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
         send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
-      }
-      else{
-        sprintf(msg,"ELEMENTOS ORDENADOS CON ÉXITOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
-        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+
+        if((ret = ordenar(*archivo,registros,campo, funcionOrdenar))<0){
+          sprintf(msg,"ERROR AL ORDENAR LOS ELEMENTOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
+        else{
+          sprintf(msg,"ELEMENTOS ORDENADOS CON ÉXITOS."); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+          send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+        }
       }
     }
+
+    if(ret==-1)
+      sprintf(*msgErr,"Comando inválido\n\tORDENAR [CAMPO] [ORD]:\n\t\tOrdena los registros en orden ascendente o descendente según el campo indicado.\n\n");
+
 
     break;
   }
 
-  free(valor);
+  if(comando != 0 && comando != 5)
+    free(valor);
+
   return ret;
 }
 
@@ -427,7 +461,7 @@ int copiar_archivoBAT(FILE *archivoBase, FILE *archivoDestino){
 
 //MUESTRA EL MENSAJE DE AYUDA - MENU
 int ayuda(int socket){
-  char msg[]="menu";
+  char msg[]=MENU_TRANSACCION;
   send(socket, (void*) &msg, sizeof(msg),0);
   return 1;
 }
@@ -442,6 +476,7 @@ int mostrar(Registro* regists, int registros, int socket){
   sprintf(msg,"ID\t\t ID Productor\t\t Nombre\t\t\t Stock\t\t Precio");
   send(socket, (void*) &msg, sizeof(msg),0);
   registros--;
+  usleep(100);
   //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
   while(registros>0){
     regis=*(regists+i);
@@ -575,11 +610,6 @@ int actualizar(FILE* archivo, int campo, void* valor){
     }
 
     if(encontrado){
-      if(registroa.id<0)
-      registroa.id=reg.id;
-      else if(registroa.id==0)
-        return -1;
-
       if(registroa.productor_idx<0)
         registroa.productor_idx=reg.productor_idx;
 
@@ -622,7 +652,7 @@ int ordenar(FILE* archivo, int registros, int campo, int (*ord)(const void*,cons
     registros--;
   }
 
-  qsort(regis, registros, sizeof(Registro), ord);
+  qsort(regis, i, sizeof(Registro), ord);
 
   fseek(archivo,0,SEEK_SET);
 
@@ -724,7 +754,7 @@ void* valor_campo(Palabra valor, int campo){
     break;
     case 4:
       ret = malloc(sizeof(double));
-      *((int*)ret) = atof(val);
+      *((double*)ret) = atof(val);
     break;
   }
 
@@ -755,6 +785,7 @@ Palabra leer_palabra(char** cadena){
   return palabra;
 }
 
+
 int ordenarIDAsc(const void* a, const void* b){
   const Registro* ra = (Registro*)a;
   const Registro* rb = (Registro*)b;
@@ -766,5 +797,64 @@ int ordenarIDDesc(const void* a, const void* b){
   const Registro* ra = (Registro*)a;
   const Registro* rb = (Registro*)b;
 
-  return ra->id > rb->id;
+  return rb->id > ra->id;
+}
+
+
+int ordenarProdAsc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return ra->productor_idx > rb->productor_idx;
+}
+
+int ordenarProdDesc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return rb->productor_idx > ra->productor_idx;
+}
+
+
+int ordenarNombreAsc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return strcmp(ra->nombre,rb->nombre);
+}
+
+int ordenarNombreDesc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return strcmp(rb->nombre,ra->nombre);
+}
+
+
+int ordenarStockAsc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return ra->stock > rb->stock;
+}
+
+int ordenarStockDesc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return rb->stock > ra->stock;
+}
+
+int ordenarPrecioAsc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return ra->precio > rb->precio;
+}
+
+int ordenarPrecioDesc(const void* a, const void* b){
+  const Registro* ra = (Registro*)a;
+  const Registro* rb = (Registro*)b;
+
+  return rb->precio > ra->precio;
 }

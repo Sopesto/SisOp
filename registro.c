@@ -181,6 +181,7 @@ int procesar_consulta(char* consulta, FILE **archivo, int socket, char** msgErr)
   //PROBLEMA ACÁ
   if(comando<0){
     puts("Comando inválido");
+    sprintf(*msgErr,"Comando inválido, escriba AYUDA para más información sobre los comandos disponibles.");
 
     return ret;
   }
@@ -272,6 +273,10 @@ int procesar_consulta(char* consulta, FILE **archivo, int socket, char** msgErr)
 
       if(i)
         ret = mostrar(regis,cantMensajes,socket);
+      else{
+        sprintf(msg,"No se encontró el registro"); //GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A ENVIAR
+        send(socket, (void*) &msg, sizeof(msg),0); //LE DICE AL CLIENTE CUANTOS MENSAJES SE ENVIARÁN
+      }
 
       free(regis);
     }
@@ -476,11 +481,11 @@ int mostrar(Registro* regists, int registros, int socket){
   sprintf(msg,"ID\t\t ID Productor\t\t Nombre\t\t\t Stock\t\t Precio");
   send(socket, (void*) &msg, sizeof(msg),0);
   registros--;
-  usleep(100);
   //WHILE PARA MANDAR TODOS LOS MENSAJES PENDIENTES
   while(registros>0){
+    usleep(25);
     regis=*(regists+i);
-    sprintf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t %f", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
+    sprintf(msg,"%d\t\t %d\t\t\t %s\t\t %d\t\t $%.2f", regis.id,regis.productor_idx,regis.nombre,regis.stock,regis.precio);
     send(socket, (void*) &msg, sizeof(msg),0);
     i++;
     registros--;

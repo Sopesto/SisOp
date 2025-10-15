@@ -1,16 +1,18 @@
 CC = gcc
 CFLAGS = -w -O2
 LDFLAGS = -pthread
+ARCH_INSC = "./Pruebas/instrucciones.txt"
+ARCH_INSE = "./Pruebas/instrucciones_sincommit.txt"
 
 all: carpetas bin pruebas
 
 carpetas: cobjetos cpruebas cejecutables
 
-pruebas: prueba_consumidor prueba_servidor prueba_cliente
-	cp netconfig.config ./Pruebas
+pruebas: prueba_consumidor prueba_servidor prueba_cliente archivos_prueba
+	echo "192.168.1.42:50001" > ./Pruebas/netconfig.config
 	
 bin: consumidor servidor cliente
-	cp netconfig.config ./Ejecutables
+	echo "192.168.1.42:50001" > ./Ejecutables/netconfig.config
 
 cobjetos:
 	@mkdir -p Objetos
@@ -50,6 +52,24 @@ prueba_servidor: servidor.o registro.o
 
 prueba_cliente: cliente.o registro.o
 	$(CC) $(CFLAGS) ./Objetos/cliente.o ./Objetos/registro.o -o ./Pruebas/cliente 
+
+archivos_prueba:
+	touch $(ARCH_INSC)
+	touch $(ARCH_INSE)
+	echo "AYUDAR" >> $(ARCH_INSC)
+	echo "BEGIN TRANSACTION" >> $(ARCH_INSC)
+	echo "ORDENAR ID ASC" >> $(ARCH_INSC)
+	echo "ELIMINAR ID 2" >> $(ARCH_INSC)
+	echo "COMMIT TRANSACTION" >> $(ARCH_INSC)
+	echo "SALIR" >> $(ARCH_INSC)
+	echo "" >> $(ARCH_INSC)
+	echo "AYUDA" >> $(ARCH_INSE)
+	echo "BEGIN TRANSACTION" >> $(ARCH_INSE)
+	echo "ORDENAR ID DESC" >> $(ARCH_INSE)
+	echo "ELIMINAR ID 30" >> $(ARCH_INSE)
+	cp ./prueba_consumidor.sh ./Pruebas/
+	cp ./prueba_cliente-servidor.sh ./Pruebas/
+	cp ./validar_ids.awk ./Pruebas/
 
 clean:
 	rm -f Objetos/* Pruebas/* Ejecutables/*

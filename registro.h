@@ -20,17 +20,17 @@
 #define MAX_PRODS 64         // número máximo de productores soportados
 #define MAX_RECYCLE 256      // cantidad máxima de bloques reciclados
 
-#define ERR_MEM   -1
-#define ERR_SOC   -2
-#define ERR_BIND  -3
-#define ERR_LIST  -4
-#define ERR_THRD  -5
-#define ERR_MUTX  -6
-#define ERR_ARCH  -7
-#define ERR_SEM   -8
-#define ERR_CPH   -9
-#define ERR_ARG   -10
-#define FIN_EPH 1
+#define ERR_MEM   100
+#define ERR_SOC   200
+#define ERR_BIND  300
+#define ERR_LIST  400
+#define ERR_THRD  500
+#define ERR_MUTX  600
+#define ERR_ARCH  700
+#define ERR_SEM   800
+#define ERR_CPH   900
+#define ERR_ARG   110
+#define FIN_EPH   101
 
 #define REG_VAC 0
 #define REG_COM 1

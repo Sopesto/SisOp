@@ -2,14 +2,15 @@
 #include <netdb.h>
 #include <ifaddrs.h>
 #include <pthread.h>
+#include <errno.h>
 #include "registro.h"
 
 //VARIABLES GLOBALES Y SEMÁFOROS
 //archivo_en_uso se usa para avisar al cliente que el archivo está en uso sin bloquear al usuario
-int   archivo_en_uso = 0, socketsLibres, sockEspera=0, estadoServidor=1, cantHilos, fdsocket;
+int   archivo_en_uso = 0, socketsLibres, sockEspera=0, estadoServidor=1, cantHilos, fdsocket=-1;
 int*  socketsClientes, *socketsEspera;
 pthread_mutex_t     semSocketLibre = PTHREAD_MUTEX_INITIALIZER, semArchUso = PTHREAD_MUTEX_INITIALIZER, semCreaT = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t*    estadosHilos;
+pthread_mutex_t*    estadosHilos=NULL;
 pthread_t*          hilos;
 FILE*               archivoRegistros;
 char*               ip;
@@ -28,6 +29,8 @@ int main(int argc, char* argv[]){
     atexit(liberarRecursos);
     //MANEJO DE SEÑALES
     signal(SIGINT,SIG_IGN);
+    signal(SIGTERM,SIG_IGN);
+    signal(SIGQUIT,SIG_IGN);
     signal(SIGPIPE,SIG_IGN);
 
     //RESERVA ESPACIO PARA LA IP
@@ -35,8 +38,11 @@ int main(int argc, char* argv[]){
 
     //ABRE EL ARCHIVO DE CONFIGURACIÓN DE RED
     archivoRed = fopen("netconfig.config","rt");
-    if(archivoRed==NULL)
+    if(archivoRed==NULL){
+      puts("Error al abrir el archivo de red");
       return ERR_SOC;
+    }
+
 
     //LEE EL ARCHIVO DE CONFIGURACIÓN DE RED
     if(fscanf(archivoRed,"%16[^:]:%d",ip,&puerto)<0)
@@ -140,7 +146,6 @@ int main(int argc, char* argv[]){
       //ACEPTA UNA CONEXIÓN ENTRANTE, ES BLOQUEANTE
       auxAccept = accept(fdsocket,NULL,NULL);
 
-      //SI HAY SOCKETS LIBRES DESPIERTA UN HILO PARA QUE ATIENDA LA CONEXIÓN
       if(socketsLibres>0){
         //BUSCA UN SOCKET LIBRE Y GUARDA LA POSICIÓN
         i = buscarSocketLibre(socketsClientes, cantHilos);
@@ -184,22 +189,28 @@ int main(int argc, char* argv[]){
 void liberarRecursos(){
   //CIERRE Y LIBERACIÓN DE RECURSOS
   //CIERRE SOCKET
-  close(fdsocket);
+  if (fdsocket!=-1)
+    close(fdsocket);
   //CIERRE ARCHIVO
   if(archivoRegistros!=NULL)
     fclose(archivoRegistros);
+
+  //LIBERACIÓN DE SEMÁFOROS
+  pthread_mutex_destroy(&semSocketLibre);
+  pthread_mutex_destroy(&semArchUso);
+  pthread_mutex_destroy(&semCreaT);
+  if(estadosHilos!=NULL){
+    for(int i=0;i<cantHilos;i++)
+      pthread_mutex_destroy((estadosHilos+i));
+  }
+
   //LIBERACIÓN DE MEMORIA DINÁMICA
   free(hilos);
   free(socketsClientes);
   free(estadosHilos);
   free(socketsEspera);
   free(ip);
-  //LIBERACIÓN DE SEMÁFOROS
-  pthread_mutex_destroy(&semSocketLibre);
-  pthread_mutex_destroy(&semArchUso);
-  pthread_mutex_destroy(&semCreaT);
-  for(int i=0;i<cantHilos;i++)
-    pthread_mutex_destroy(estadosHilos+i);
+
 }
 
 //FUNCIÓN DE HILO QUE ATIENDE UNA CONEXIÓN
@@ -323,9 +334,8 @@ void* hilo_socket(void* idHilo){
 
             fflush(stdout);
 
-            if(errTransaccion){
+            if(errTransaccion)
               puts("El usuario no guardó las transacciones, por lo que no se guardarán los cambios");
-            }
             else{
               if(freopen(NULL,"w+",archivoRegistros)==NULL){
                 puts("Error al re abrir el archivo de registros");
@@ -389,6 +399,7 @@ void* hilo_socket(void* idHilo){
         printf("[Servidor] -> ESTOS FUERON SUS MENSAJES:\n%s", msgfin);
         msgfin[0] = '\0'; //RESETEO DE MENSAJES ENVIADOS POR EL CLIENTE
         close(socket);    //CIERRE DE SOCKET
+        finCli=0;
         //SI HAY UN SOCKET EN ESPERA LO ATIENDE
         if(sockEspera>0){
           socket = *(socketsEspera);
@@ -398,10 +409,16 @@ void* hilo_socket(void* idHilo){
             *socketsEspera = *(socketsEspera+1);
             *(socketsEspera+1) = aux;
           }
-          sprintf(msg,"[Servidor] -> Nuevo cliente");
+          printf("[Servidor] -> Nuevo cliente en hilo: %d ID socket: %d\n",id,socket);
+
+          sprintf(msg,"1");
           send(socket, (void*) &msg, sizeof(msg),0);
 
           sprintf(msg,"1");
+          send(socket, (void*) &msg, sizeof(msg),0);
+
+          //MENSAJE DE MENU
+          sprintf(msg,MENU_CLIENTE);
           send(socket, (void*) &msg, sizeof(msg),0);
         }
         //SI NO HAY SOCKETS EN ESPERA, LO AVISA, ROMPE EL WHILE, SE BLOQUE Y ESPERA A SER DESPERTADO OTRA VEZ

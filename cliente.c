@@ -63,8 +63,6 @@ int main(int argc, char* argv[]){
     signal(SIGINT,SIG_IGN);
     signal(SIGPIPE,SIG_IGN);
 
-
-
     //VERIFICACIÓN DE INICIALIZACIÓN
     if(fdsocket==-1){
       printf("Hubo un error al abrir el socket\n");
@@ -119,6 +117,7 @@ int main(int argc, char* argv[]){
           puts("Se perdió la conexión con el servidor");
           clienteAbierto=0;
         }
+
         if(clienteAbierto){
           cantMensajes = strtol(msg,NULL,10);//GUARDA EN EL MENSAJE LA CANTIDAD DE MENSAJES A RECIBIR
           if(cantMensajes==0)
@@ -141,8 +140,15 @@ int main(int argc, char* argv[]){
           //PIDE UN MENSAJE AL CLIENTE PARA SER ENVIADO AL SERVIDOR
           puts("[Cliente] -> Ingrese un mensaje:");
           fflush(stdin);
+
           if(getline(&msg,&tamMsg,stdin)>0){ //SI NO SE PUDO LEER LA LINEA NO ENVIA EL MENSAJE NI ESPERA UNO NUEVO
             limpiarSalto(msg);//LIMPIA EL SALTO FINAL DEL GETLINE
+
+            if((int)tamMsg>TAM_MSG){
+              *(msg+TAM_MSG-1) = '\0';
+              msg = realloc(msg, TAM_MSG * sizeof(char));
+              tamMsg = TAM_MSG;
+            }
 
             //ENVIA EL MENSAJE AL SERVIDOR
             printf("[Cliente] -> Enviando: %s\n",msg);
@@ -150,7 +156,9 @@ int main(int argc, char* argv[]){
               puts("FALLO");
               clienteAbierto=0;
             }
+            usleep(100);
           }
+
         }
 
       }

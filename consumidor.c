@@ -68,8 +68,8 @@ void cleanup_ipc_and_exit(int status){
     if(semRespuesta){
         for(int i=0;i<cantProcs_glob;i++){
             if(semRespuesta[i]) sem_close(semRespuesta[i]);
-            char name[64];
-            snprintf(name, sizeof(name), "/sem_res_tp_%d", i);
+            char name[24];
+            sprintf(name, "/sem_res_tp_%d", i);
             sem_unlink(name);
         }
         free(semRespuesta);
@@ -112,7 +112,7 @@ int productor_func(int idx){
     sem_t *sEsp = sem_open(SEM_EB_NAME, 0);
     sem_t *sArch = sem_open(SEM_AU_NAME, 0);
     sem_t *sSolic = sem_open(SEM_SOLICITUDES, 0);
-    char name_resp[64];
+    char name_resp[24];
     snprintf(name_resp, sizeof(name_resp), "/sem_res_tp_%d", idx);
     sem_t *sResp = sem_open(name_resp, 0);
 
@@ -151,10 +151,8 @@ int productor_func(int idx){
 
         /* avisar al coordinador (incrementa contador solicitudes) */
         sem_post_retry(sSolic);
-
         /* esperar respuesta del coordinador */
         if( sem_wait_retry(sResp) == -1 ){ perror("sem_wait sResp"); break; }
-
         /* leer bloque asignado */
         if( sem_wait_retry(sIDs) == -1 ){ perror("sem_wait sIDs"); break; }
         BloqueIDs bl = ctrl->bloques[idx];
@@ -170,7 +168,6 @@ int productor_func(int idx){
         for(int k=0;k<bl.cantidad;k++){
             int id_actual = bl.start + k;
             Registro r = generar_registro_aleatorio(id_actual, idx);
-
             /* poner en buffer (produce uno por uno) */
             if( sem_wait_retry(sEsp) == -1 ){ perror("sem_wait sEsp"); break; }
             if( sem_wait_retry(sBuf) == -1 ){ perror("sem_wait sBuf"); sem_post_retry(sEsp); break; }
@@ -259,9 +256,10 @@ int main(int argc, char *argv[]){
     sem_unlink(SEM_EB_NAME);
     sem_unlink(SEM_AU_NAME);
     sem_unlink(SEM_SOLICITUDES);
+
     for(int i=0;i<cantProcs;i++){
-        char name[64];
-        snprintf(name, sizeof(name), "/sem_res_tp_%d", i);
+        char name[24];
+        sprintf(name, "/sem_res_tp_%d", i);
         sem_unlink(name);
     }
 
@@ -280,8 +278,8 @@ int main(int argc, char *argv[]){
     semRespuesta = calloc(cantProcs, sizeof(sem_t*));
     if(!semRespuesta){ perror("calloc semRespuesta"); cleanup_ipc_and_exit(1); }
     for(int i=0;i<cantProcs;i++){
-        char name[64];
-        snprintf(name, sizeof(name), "/sem_res_tp_%d", i);
+        char name[24];
+        sprintf(name, "/sem_res_tp_%d", i);
         semRespuesta[i] = sem_open(name, O_CREAT|O_EXCL, 0644, 0);
         if(semRespuesta[i] == SEM_FAILED){
             perror("sem_open respuesta");
@@ -433,7 +431,11 @@ int main(int argc, char *argv[]){
         /* procesar un número limitado de solicitudes por iteración para evitar busy-loop */
         int processed = 0;
         const int MAX_PROC_PER_ITER = 256;
-        while(processed < MAX_PROC_PER_ITER && sem_trywait(semSolicitudes) == 0 ){
+
+        if(cantProcs<4)
+          usleep(150/cantProcs);
+
+        while(processed < MAX_PROC_PER_ITER && sem_trywait(semSolicitudes) == 0){
             processed++;
             /* buscar un productor que solicitó */
             if( sem_wait_retry(semIDs) == -1 ){ perror("sem_wait semIDs"); break; }
@@ -558,8 +560,8 @@ int main(int argc, char *argv[]){
     sem_unlink(SEM_ID_NAME); sem_unlink(SEM_BR_NAME); sem_unlink(SEM_MB_NAME); sem_unlink(SEM_EB_NAME); sem_unlink(SEM_AU_NAME);
     sem_unlink(SEM_SOLICITUDES);
     for(int i=0;i<cantProcs;i++){
-        char name[64];
-        snprintf(name, sizeof(name), "/sem_res_tp_%d", i);
+        char name[24];
+        sprintf(name, "/sem_res_tp_%d", i);
         sem_unlink(name);
     }
 
